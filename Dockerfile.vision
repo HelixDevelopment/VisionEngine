@@ -1,0 +1,28 @@
+# Copyright 2026 Milos Vasic. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Dockerfile.vision — VisionEngine with OpenCV 4.x for full vision capabilities
+FROM golang:1.24-bookworm
+
+# Install OpenCV 4.x dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    pkg-config \
+    libopencv-dev \
+    libopencv-contrib-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify OpenCV installation
+RUN pkg-config --modversion opencv4 || pkg-config --modversion opencv
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+
+# Build with vision tag
+RUN go build -tags vision ./...
+
+# Run tests with vision tag
+CMD ["go", "test", "-tags", "vision", "./...", "-race", "-count=1", "-timeout", "120s"]
