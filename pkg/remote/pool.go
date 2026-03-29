@@ -75,71 +75,118 @@ func (s *VisionSlot) Stats() SlotStats {
 	return s.stats
 }
 
+// Backend selects the inference server type.
+type Backend string
+
+const (
+	// BackendOllama uses Ollama (default).
+	BackendOllama Backend = "ollama"
+	// BackendLlamaCpp uses llama-server from llama.cpp.
+	BackendLlamaCpp Backend = "llamacpp"
+)
+
 // PoolConfig configures a VisionPool.
 type PoolConfig struct {
-	// Host is the Ollama server hostname.
+	// Host is the remote server hostname.
 	Host string
 
 	// User is the SSH user for deployment.
 	User string
 
-	// BasePort is the starting port for Ollama instances.
-	// The pool allocates BasePort, BasePort+1, ... for each
-	// slot. When running against a single shared Ollama
-	// instance, all slots share BasePort.
+	// BasePort is the starting port for instances.
+	// Ollama default: 11434. LlamaCpp default: 8090.
 	BasePort int
 
 	// Model is the vision model to use.
 	Model string
 
-	// Shared indicates all slots use one Ollama instance
-	// (true) or each slot gets its own instance on a
-	// dedicated port (false). Shared mode is the default
-	// since Ollama handles concurrent requests natively.
+	// Shared indicates all slots use one instance (true) or
+	// each slot gets a dedicated port (false). Shared mode
+	// is the default for Ollama. LlamaCpp always uses
+	// dedicated mode (one process per port).
 	Shared bool
+
+	// InferenceBackend selects ollama or llamacpp.
+	// Default: ollama.
+	InferenceBackend Backend
+
+	// LlamaCpp holds llama.cpp-specific configuration.
+	// Only used when InferenceBackend == BackendLlamaCpp.
+	LlamaCpp *LlamaCppConfig
 }
 
 // VisionPool manages a set of VisionSlots, one per
-// platform/device being tested. It ensures the Ollama backend
-// is ready and assigns dedicated slots to each QA target.
+// platform/device being tested. It ensures the backend
+// (Ollama or llama.cpp) is ready and assigns dedicated
+// slots to each QA target.
 type VisionPool struct {
-	cfg      PoolConfig
-	deployer *Deployer
-	slots    map[string]*VisionSlot
-	mu       sync.Mutex
+	cfg          PoolConfig
+	deployer     *Deployer
+	llamaDeployer *LlamaCppDeployer
+	slots        map[string]*VisionSlot
+	mu           sync.Mutex
 }
 
 // NewVisionPool creates a pool backed by the given config.
 func NewVisionPool(cfg PoolConfig) *VisionPool {
 	if cfg.BasePort == 0 {
-		cfg.BasePort = 11434
+		if cfg.InferenceBackend == BackendLlamaCpp {
+			cfg.BasePort = 8090
+		} else {
+			cfg.BasePort = 11434
+		}
 	}
 	if cfg.Model == "" {
 		cfg.Model = "llava:7b"
 	}
-	return &VisionPool{
-		cfg: cfg,
-		deployer: NewDeployer(Config{
+
+	p := &VisionPool{
+		cfg:   cfg,
+		slots: make(map[string]*VisionSlot),
+	}
+
+	if cfg.InferenceBackend == BackendLlamaCpp &&
+		cfg.LlamaCpp != nil {
+		p.llamaDeployer = NewLlamaCppDeployer(*cfg.LlamaCpp)
+	} else {
+		p.deployer = NewDeployer(Config{
 			Host:       cfg.Host,
 			User:       cfg.User,
 			Model:      cfg.Model,
 			OllamaPort: cfg.BasePort,
-		}),
-		slots: make(map[string]*VisionSlot),
+		})
 	}
+	return p
 }
 
-// EnsureReady verifies the Ollama backend is running and the
-// model is available. Call this before assigning slots.
+// EnsureReady verifies the backend is running and the model
+// is available. For llama.cpp, it builds the binary and
+// downloads the model if needed.
 func (p *VisionPool) EnsureReady(
 	ctx context.Context,
 ) error {
+	if p.llamaDeployer != nil {
+		// llama.cpp backend: build + model.
+		if err := p.llamaDeployer.EnsureBuilt(ctx); err != nil {
+			return fmt.Errorf("vision pool: %w", err)
+		}
+		if err := p.llamaDeployer.EnsureModel(ctx); err != nil {
+			return fmt.Errorf("vision pool: %w", err)
+		}
+		fmt.Printf(
+			"[vision-pool] llama.cpp backend ready on %s\n",
+			p.cfg.Host,
+		)
+		return nil
+	}
+
+	// Ollama backend.
 	endpoint, err := p.deployer.EnsureReady(ctx)
 	if err != nil {
 		return fmt.Errorf("vision pool: %w", err)
 	}
 	fmt.Printf(
-		"[vision-pool] backend ready at %s\n",
+		"[vision-pool] ollama backend ready at %s\n",
 		endpoint,
 	)
 	return nil
@@ -152,9 +199,9 @@ type SlotTarget struct {
 }
 
 // AssignSlots creates dedicated VisionSlots for each target.
-// In shared mode, all slots point to the same Ollama endpoint
-// but have independent locks for request serialization.
-// In dedicated mode, each slot gets its own port.
+// In shared mode (Ollama), all slots share one endpoint.
+// In dedicated mode (llama.cpp), each slot gets its own
+// llama-server instance on a dedicated port.
 func (p *VisionPool) AssignSlots(
 	targets []SlotTarget,
 ) []*VisionSlot {
@@ -176,6 +223,24 @@ func (p *VisionPool) AssignSlots(
 		endpoint := fmt.Sprintf(
 			"http://%s:%d", p.cfg.Host, port,
 		)
+
+		// For llama.cpp dedicated mode, start a server
+		// instance on this port.
+		if p.llamaDeployer != nil && !p.cfg.Shared {
+			started, err := p.llamaDeployer.StartInstance(
+				context.Background(), port,
+			)
+			if err != nil {
+				fmt.Printf(
+					"[vision-pool] WARNING: failed "+
+						"to start llama-server on "+
+						"port %d: %v\n",
+					port, err,
+				)
+			} else {
+				endpoint = started
+			}
+		}
 
 		slot := &VisionSlot{
 			ID:       id,
@@ -257,23 +322,35 @@ func (p *VisionPool) PrintStats() {
 	}
 }
 
-// Shutdown stops any dedicated Ollama instances started by
-// the pool. In shared mode, this is a no-op (the main
-// Ollama service is not affected).
+// Shutdown stops any dedicated instances started by the pool.
+// In shared Ollama mode, this is a no-op. In llama.cpp
+// dedicated mode, all llama-server processes are stopped.
 func (p *VisionPool) Shutdown(ctx context.Context) {
-	if p.cfg.Shared {
-		p.PrintStats()
+	p.PrintStats()
+
+	if p.cfg.Shared && p.llamaDeployer == nil {
 		return
 	}
-	// Kill dedicated instances.
-	for _, slot := range p.AllSlots() {
-		if slot.Port != p.cfg.BasePort {
-			cmd := fmt.Sprintf(
-				"pkill -f 'ollama.*%d'",
-				slot.Port,
-			)
-			_, _ = p.deployer.sshRun(ctx, cmd)
+
+	if p.llamaDeployer != nil {
+		// Stop all llama-server instances we started.
+		for _, slot := range p.AllSlots() {
+			p.llamaDeployer.StopInstance(ctx, slot.Port)
+		}
+		fmt.Println("[vision-pool] all llama-server instances stopped")
+		return
+	}
+
+	// Ollama dedicated mode.
+	if p.deployer != nil {
+		for _, slot := range p.AllSlots() {
+			if slot.Port != p.cfg.BasePort {
+				cmd := fmt.Sprintf(
+					"pkill -f 'ollama.*%d'",
+					slot.Port,
+				)
+				_, _ = p.deployer.sshRun(ctx, cmd)
+			}
 		}
 	}
-	p.PrintStats()
 }
