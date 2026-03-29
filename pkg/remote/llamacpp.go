@@ -104,6 +104,45 @@ func (d *LlamaCppDeployer) sshRun(
 	return string(out), err
 }
 
+// FreeGPU attempts to stop Ollama (which typically consumes
+// most of the GPU VRAM) so llama-server can use the GPU.
+// Tries systemctl first, then pkill. Non-fatal if it fails
+// (Ollama may require root/sudo).
+func (d *LlamaCppDeployer) FreeGPU(
+	ctx context.Context,
+) {
+	fmt.Println("[llamacpp] freeing GPU (stopping Ollama)...")
+	// Try systemctl (works if user has permission or service
+	// is user-level).
+	d.sshRun(ctx, "systemctl stop ollama 2>/dev/null")
+	d.sshRun(ctx, "systemctl --user stop ollama 2>/dev/null")
+	// Try direct kill (works for user-level Ollama).
+	d.sshRun(ctx, "pkill -f 'ollama serve' 2>/dev/null")
+	time.Sleep(3 * time.Second)
+
+	// Check if GPU is now free.
+	out, _ := d.sshRun(ctx,
+		"nvidia-smi --query-gpu=memory.free "+
+			"--format=csv,noheader,nounits 2>/dev/null",
+	)
+	var freeMB int
+	fmt.Sscanf(strings.TrimSpace(out), "%d", &freeMB)
+	fmt.Printf(
+		"[llamacpp] GPU now has %dMB free\n", freeMB,
+	)
+}
+
+// RestoreOllama restarts Ollama after QA session completes.
+func (d *LlamaCppDeployer) RestoreOllama(
+	ctx context.Context,
+) {
+	fmt.Println("[llamacpp] restoring Ollama service...")
+	d.sshRun(ctx, "systemctl start ollama 2>/dev/null")
+	d.sshRun(ctx,
+		"nohup ollama serve >/dev/null 2>&1 &",
+	)
+}
+
 // IsBuilt checks if llama-server binary exists on the remote.
 func (d *LlamaCppDeployer) IsBuilt(
 	ctx context.Context,
