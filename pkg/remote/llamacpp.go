@@ -106,18 +106,20 @@ func (d *LlamaCppDeployer) sshRun(
 
 // FreeGPU attempts to stop Ollama (which typically consumes
 // most of the GPU VRAM) so llama-server can use the GPU.
-// Tries systemctl first, then pkill. Non-fatal if it fails
-// (Ollama may require root/sudo).
+// Uses sudo where available. If unable to stop Ollama, logs
+// a warning — llama-server will fall back to CPU mode.
 func (d *LlamaCppDeployer) FreeGPU(
 	ctx context.Context,
 ) {
 	fmt.Println("[llamacpp] freeing GPU (stopping Ollama)...")
-	// Try systemctl (works if user has permission or service
-	// is user-level).
-	d.sshRun(ctx, "systemctl stop ollama 2>/dev/null")
+	// Try sudo systemctl (most reliable for root services).
+	d.sshRun(ctx,
+		"sudo systemctl stop ollama 2>/dev/null && "+
+			"sudo systemctl mask ollama 2>/dev/null")
+	// Also try non-sudo variants.
 	d.sshRun(ctx, "systemctl --user stop ollama 2>/dev/null")
-	// Try direct kill (works for user-level Ollama).
 	d.sshRun(ctx, "pkill -f 'ollama serve' 2>/dev/null")
+	d.sshRun(ctx, "sudo pkill -f 'ollama serve' 2>/dev/null")
 	time.Sleep(3 * time.Second)
 
 	// Check if GPU is now free.
@@ -137,10 +139,13 @@ func (d *LlamaCppDeployer) RestoreOllama(
 	ctx context.Context,
 ) {
 	fmt.Println("[llamacpp] restoring Ollama service...")
-	d.sshRun(ctx, "systemctl start ollama 2>/dev/null")
 	d.sshRun(ctx,
-		"nohup ollama serve >/dev/null 2>&1 &",
-	)
+		"sudo systemctl unmask ollama 2>/dev/null && "+
+			"sudo systemctl start ollama 2>/dev/null")
+	// Fallback for non-sudo.
+	d.sshRun(ctx, "systemctl --user start ollama 2>/dev/null")
+	d.sshRun(ctx,
+		"nohup ollama serve >/dev/null 2>&1 &")
 }
 
 // IsBuilt checks if llama-server binary exists on the remote.
