@@ -18,9 +18,17 @@ VisionEngine provides computer vision (GoCV) and LLM Vision capabilities for UI 
 ### Key Packages
 - `pkg/analyzer` — Analyzer interface, ScreenAnalysis, UIElement, VisualIssue types
 - `pkg/graph` — NavigationGraph with BFS pathfinding, DOT/JSON/Mermaid export
-- `pkg/llmvision` — VisionProvider interface, 4 LLM adapters (OpenAI, Anthropic, Gemini, Qwen)
+- `pkg/llmvision` — VisionProvider interface, 7 LLM adapters (OpenAI, Anthropic, Gemini, Qwen, Kimi, StepFun, Ollama) + FallbackProvider
+- `pkg/remote` — Remote Ollama deployment via SSH, hardware detection (GPU/CPU/RAM), llama.cpp RPC worker management
 - `pkg/opencv` — GoCV stubs (real impl behind `//go:build vision` tag)
 - `pkg/config` — Configuration via environment variables
+
+### Vision Providers
+- **Cloud**: OpenAI, Anthropic, Gemini, Qwen, Kimi, StepFun — configured via API key env vars
+- **Local**: Ollama — free inference, no rate limits, configured via `HELIX_OLLAMA_URL`
+- **Distributed**: llama.cpp RPC — splits large models across hosts via `HELIX_LLAMACPP_RPC_WORKERS`
+- **Fallback**: `FallbackProvider` chains multiple providers for resilience
+- Provider selection via `HELIX_VISION_PROVIDER` (`auto` probes all configured providers)
 
 ### Build Tags
 OpenCV code is gated behind `//go:build vision`. Default `go test ./...` works without OpenCV.

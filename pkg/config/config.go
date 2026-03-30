@@ -19,7 +19,7 @@ var (
 
 // Config holds the VisionEngine configuration.
 type Config struct {
-	// VisionProvider selects the primary vision provider: "openai", "anthropic", "gemini", "qwen", "auto".
+	// VisionProvider selects the primary vision provider: "openai", "anthropic", "gemini", "qwen", "astica", "auto".
 	VisionProvider string `json:"vision_provider"`
 	// OpenCVEnabled indicates if OpenCV features are enabled.
 	OpenCVEnabled bool `json:"opencv_enabled"`
@@ -37,6 +37,7 @@ type Config struct {
 	GroqAPIKey      string `json:"-"`
 	KimiAPIKey      string `json:"-"`
 	StepfunAPIKey   string `json:"-"`
+	AsticaAPIKey    string `json:"-"`
 
 	// Provider-specific models.
 	OpenAIModel    string `json:"openai_model,omitempty"`
@@ -45,6 +46,7 @@ type Config struct {
 	QwenModel      string `json:"qwen_model,omitempty"`
 	KimiModel      string `json:"kimi_model,omitempty"`
 	StepGUIModel   string `json:"stepgui_model,omitempty"`
+	AsticaModel    string `json:"astica_model,omitempty"`
 
 	// Timeouts in seconds.
 	TimeoutSecs int `json:"timeout_secs"`
@@ -99,6 +101,7 @@ func LoadFromEnv() Config {
 		cfg.KimiAPIKey = os.Getenv("MOONSHOT_API_KEY")
 	}
 	cfg.StepfunAPIKey = os.Getenv("STEPFUN_API_KEY")
+	cfg.AsticaAPIKey = os.Getenv("ASTICA_API_KEY")
 
 	if v := os.Getenv("HELIX_VISION_OPENAI_MODEL"); v != "" {
 		cfg.OpenAIModel = v
@@ -118,6 +121,9 @@ func LoadFromEnv() Config {
 	if v := os.Getenv("HELIX_VISION_STEPGUI_MODEL"); v != "" {
 		cfg.StepGUIModel = v
 	}
+	if v := os.Getenv("HELIX_VISION_ASTICA_MODEL"); v != "" {
+		cfg.AsticaModel = v
+	}
 	if v := os.Getenv("HELIX_VISION_TIMEOUT"); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			cfg.TimeoutSecs = i
@@ -131,7 +137,7 @@ func LoadFromEnv() Config {
 func (c Config) Validate() error {
 	validProviders := map[string]bool{
 		"auto": true, "openai": true, "anthropic": true, "gemini": true, "qwen": true,
-		"kimi": true, "stepgui": true,
+		"kimi": true, "stepgui": true, "astica": true,
 	}
 	if !validProviders[c.VisionProvider] {
 		return fmt.Errorf("%w: unknown vision provider %q", ErrInvalidConfig, c.VisionProvider)
@@ -172,6 +178,10 @@ func (c Config) Validate() error {
 		if c.StepfunAPIKey == "" {
 			return fmt.Errorf("%w: STEPFUN_API_KEY required for stepgui provider", ErrInvalidConfig)
 		}
+	case "astica":
+		if c.AsticaAPIKey == "" {
+			return fmt.Errorf("%w: ASTICA_API_KEY required for astica provider", ErrInvalidConfig)
+		}
 	}
 
 	return nil
@@ -203,6 +213,9 @@ func (c Config) AvailableProviders() []string {
 	}
 	if c.StepfunAPIKey != "" {
 		providers = append(providers, "stepgui")
+	}
+	if c.AsticaAPIKey != "" {
+		providers = append(providers, "astica")
 	}
 	return providers
 }
