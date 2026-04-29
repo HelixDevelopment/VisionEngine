@@ -165,6 +165,7 @@ func TestStress_PathfindingLargeGraph(t *testing.T) {
 }
 
 func TestStress_ConcurrentExport(t *testing.T) {
+	// bluff-scan: no-assert-ok (concurrency test — go test -race catches data races; absence of panic == correctness)
 	g := NewNavigationGraph()
 	for i := 0; i < 100; i++ {
 		g.AddScreen(makeScreen(fmt.Sprintf("s-%d", i), fmt.Sprintf("S%d", i), "test"))
