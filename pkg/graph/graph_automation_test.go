@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"testing"
 
+	"digital.vasic.visionengine/pkg/analyzer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,8 +30,15 @@ func TestAutomation_GoVersion(t *testing.T) {
 }
 
 func TestAutomation_PackageCompiles(t *testing.T) {
-	// Verify this package compiles (test is running, so it does)
-	assert.True(t, true, "Package compiled successfully")
+	// Verify the graph package can be instantiated and performs basic work
+	g := NewNavigationGraph()
+	assert.NotNil(t, g, "NewNavigationGraph must return a non-nil graph")
+	// Add a screen and verify it exists
+	screenID := g.AddScreen(analyzer.ScreenIdentity{ID: "home", Name: "Home", Category: "main"})
+	assert.NotEmpty(t, screenID, "AddScreen must return a non-empty screen ID")
+	// Set current screen and verify
+	g.SetCurrent(screenID)
+	assert.Equal(t, screenID, g.CurrentScreen(), "CurrentScreen must match the set screen")
 }
 
 func TestAutomation_GoVet(t *testing.T) {
