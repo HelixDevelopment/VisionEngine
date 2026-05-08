@@ -499,3 +499,23 @@ Constitution amendments require:
 ---
 
 *This Constitution is the supreme law of the HelixCode project. No code, test, or process may contradict it.*
+
+## Article XI §11.9 — Anti-Bluff Forensic Anchor (Cascaded)
+
+> Verbatim user mandate: "We had been in position that all tests do execute
+> with success and all Challenges as well, but in reality the most of the
+> features does not work and can't be used! This MUST NOT be the case and
+> execution of tests and Challenges MUST guarantee the quality, the
+> completion and full usability by end users of the product!"
+>
+> Operative rule: The bar for shipping is not "tests pass" but "users can
+> use the feature." Every PASS in this codebase MUST carry positive runtime
+> evidence captured during execution. No false-success results are tolerable.
+
+### Bluff Taxonomy (cascaded from root CONSTITUTION.md)
+
+- Wrapper bluff — assertions PASS but exit-code logic is buggy
+- Contract bluff — advertises capability but rejects in dispatch
+- Structural bluff — file exists but doesn't contain working code
+- Comment bluff — comment promises behavior code doesn't have
+- Skip bluff — t.Skip() without SKIP-OK: #<ticket> marker
