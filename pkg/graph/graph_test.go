@@ -4,7 +4,8 @@
 package graph
 
 import (
-	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sync"
 	"testing"
@@ -14,6 +15,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testIdentifyScreen is a test-local replacement for the previous
+// StubAnalyzer.IdentifyScreen bluff (which fabricated ScreenIdentity
+// values from a SHA-256 hash of the screenshot bytes and presented
+// them as real screen identification). Round-27 §11.4 audit
+// (2026-05-17) moved the SHA-256-as-identity logic out of the
+// production stub (which now returns ErrStubAnalyzerNotImplemented)
+// and into test code only — CONST-050(A) permits stubs in *_test.go.
+//
+// Tests that previously round-tripped through
+// StubAnalyzer.IdentifyScreen call this helper directly to obtain
+// deterministic identities for graph-construction assertions.
+func testIdentifyScreen(screenshot []byte) analyzer.ScreenIdentity {
+	h := sha256.Sum256(screenshot)
+	fp := hex.EncodeToString(h[:])
+	return analyzer.ScreenIdentity{
+		ID:          "screen-" + fp[:8],
+		Name:        "TestScreen",
+		Category:    "test",
+		Fingerprint: fp,
+		Tags:        []string{},
+	}
+}
 
 func makeScreen(id, name, category string) analyzer.ScreenIdentity {
 	return analyzer.ScreenIdentity{
@@ -578,8 +601,10 @@ func TestNavigationGraph_Integration_FullWorkflow(t *testing.T) {
 }
 
 func TestNavigationGraph_Integration_AnalyzerToGraph(t *testing.T) {
-	// Simulate: analyzer identifies screen -> add to graph
-	a := analyzer.NewStubAnalyzer()
+	// Round-27 §11.4 audit (2026-05-17): IdentifyScreen now returns
+	// the ErrStubAnalyzerNotImplemented sentinel in production; this
+	// test uses testIdentifyScreen for the deterministic-identity
+	// behaviour the original test asserted.
 	g := NewNavigationGraph()
 
 	screens := [][]byte{
@@ -590,8 +615,7 @@ func TestNavigationGraph_Integration_AnalyzerToGraph(t *testing.T) {
 
 	prevID := ""
 	for _, img := range screens {
-		identity, err := a.IdentifyScreen(context.Background(), img)
-		require.NoError(t, err)
+		identity := testIdentifyScreen(img)
 
 		id := g.AddScreen(identity)
 		g.SetCurrent(id)
@@ -606,4 +630,3 @@ func TestNavigationGraph_Integration_AnalyzerToGraph(t *testing.T) {
 	assert.Len(t, g.Transitions(), 2)
 	assert.Equal(t, 1.0, g.Coverage())
 }
-

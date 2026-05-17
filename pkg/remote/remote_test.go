@@ -5,6 +5,7 @@ package remote_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -138,7 +139,30 @@ func TestVisionPool_Shutdown(t *testing.T) {
 	})
 	assert.Equal(t, 1, pool.Size())
 
-	pool.Shutdown(context.Background())
+	// Round-27 §11.4 audit (2026-05-17): Shutdown now returns the
+	// ErrShutdownRemoteCleanupNotImplemented sentinel so callers
+	// know remote llama-server / ollama-server processes were NOT
+	// terminated (only local pool state was cleared). Local state
+	// IS still always cleared — the sentinel is informational.
+	err := pool.Shutdown(context.Background())
+	require.Error(t, err, "Shutdown must surface the orphan-process sentinel")
+	require.True(t, errors.Is(err, remote.ErrShutdownRemoteCleanupNotImplemented),
+		"expected errors.Is(err, ErrShutdownRemoteCleanupNotImplemented), got: %v", err)
+	assert.Equal(t, 0, pool.Size(), "local pool state must still be cleared despite the sentinel")
+}
+
+// TestVisionPool_Shutdown_EmptyPool — Shutdown with no slots assigned
+// still returns the sentinel (the contract is "no remote cleanup",
+// not "no remote cleanup when there were slots to clean up").
+func TestVisionPool_Shutdown_EmptyPool(t *testing.T) {
+	pool := remote.NewVisionPool(remote.PoolConfig{
+		Host:     "thinker.local",
+		BasePort: 8080,
+	})
+	err := pool.Shutdown(context.Background())
+	require.Error(t, err)
+	require.True(t, errors.Is(err, remote.ErrShutdownRemoteCleanupNotImplemented),
+		"expected errors.Is(err, ErrShutdownRemoteCleanupNotImplemented), got: %v", err)
 	assert.Equal(t, 0, pool.Size())
 }
 
