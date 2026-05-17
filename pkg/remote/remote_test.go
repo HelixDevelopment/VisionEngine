@@ -5,6 +5,7 @@ package remote_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -48,7 +49,14 @@ func TestVisionPool_EnsureReady_LlamaCppMissingConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), "llama.cpp config required")
 }
 
-func TestVisionPool_EnsureReady_LlamaCppValid(t *testing.T) {
+// TestVisionPool_EnsureReady_ConfigValidReturnsSentinel asserts the
+// round-28 §11.4 audit fix: EnsureReady on a well-formed PoolConfig
+// no longer returns nil (which would be a §11.4 PASS-bluff — config-
+// validated ≠ backend-reachable). It returns
+// ErrBackendVerificationNotImplemented instead so callers can detect
+// the gap programmatically and perform an independent reachability
+// probe (HTTP probe, TCP dial, SSH check).
+func TestVisionPool_EnsureReady_ConfigValidReturnsSentinel(t *testing.T) {
 	pool := remote.NewVisionPool(remote.PoolConfig{
 		Host:             "thinker.local",
 		InferenceBackend: remote.BackendLlamaCpp,
@@ -58,7 +66,23 @@ func TestVisionPool_EnsureReady_LlamaCppValid(t *testing.T) {
 		},
 	})
 	err := pool.EnsureReady(context.Background())
-	assert.NoError(t, err)
+	require.Error(t, err,
+		"EnsureReady MUST NOT return nil after config-only validation — would re-introduce the §11.4 bluff")
+	require.ErrorIs(t, err, remote.ErrBackendVerificationNotImplemented)
+}
+
+// TestVisionPool_EnsureReady_MalformedConfigStillFailsWithDescriptiveError
+// asserts that malformed-config paths still produce their original
+// descriptive errors (NOT the sentinel) — the sentinel is reserved
+// for the config-valid-but-unverified path.
+func TestVisionPool_EnsureReady_MalformedConfigStillFailsWithDescriptiveError(t *testing.T) {
+	// Malformed: empty host.
+	pool := remote.NewVisionPool(remote.PoolConfig{})
+	err := pool.EnsureReady(context.Background())
+	require.Error(t, err)
+	assert.False(t,
+		errors.Is(err, remote.ErrBackendVerificationNotImplemented),
+		"malformed-config errors MUST NOT be the verification sentinel")
 }
 
 func TestVisionPool_AssignSlots_Shared(t *testing.T) {
@@ -128,6 +152,11 @@ func TestVisionPool_GetSlot_NotAssigned(t *testing.T) {
 	assert.Nil(t, slot)
 }
 
+// TestVisionPool_Shutdown asserts the round-28 §11.4 audit fix:
+// Shutdown clears local pool state (Size()==0) AND returns the
+// ErrShutdownRemoteCleanupNotImplemented sentinel so callers can
+// detect the orphan-process gap (remote llama-server processes are
+// NOT terminated by Shutdown).
 func TestVisionPool_Shutdown(t *testing.T) {
 	pool := remote.NewVisionPool(remote.PoolConfig{
 		Host:     "thinker.local",
@@ -138,7 +167,26 @@ func TestVisionPool_Shutdown(t *testing.T) {
 	})
 	assert.Equal(t, 1, pool.Size())
 
-	pool.Shutdown(context.Background())
+	err := pool.Shutdown(context.Background())
+	require.Error(t, err,
+		"Shutdown MUST surface the orphan-process sentinel — silent nil would be a §11.4 bluff")
+	require.ErrorIs(t, err, remote.ErrShutdownRemoteCleanupNotImplemented)
+	assert.Equal(t, 0, pool.Size(),
+		"local pool state MUST still be cleared (that part of Shutdown's contract has never been the gap)")
+}
+
+// TestVisionPool_Shutdown_EmptyPool asserts that Shutdown on a pool
+// with zero slots STILL returns the sentinel — the sentinel surfaces
+// the contract gap (Shutdown cannot remotely kill processes) rather
+// than the runtime state (how many slots were tracked).
+func TestVisionPool_Shutdown_EmptyPool(t *testing.T) {
+	pool := remote.NewVisionPool(remote.PoolConfig{
+		Host:     "thinker.local",
+		BasePort: 8080,
+	})
+	err := pool.Shutdown(context.Background())
+	require.Error(t, err)
+	require.ErrorIs(t, err, remote.ErrShutdownRemoteCleanupNotImplemented)
 	assert.Equal(t, 0, pool.Size())
 }
 

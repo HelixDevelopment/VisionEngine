@@ -10,9 +10,60 @@ package remote
 import (
 	"context"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
+
+// ErrBackendVerificationNotImplemented is returned by
+// VisionPool.EnsureReady after config validation succeeds, to
+// signal that the PoolConfig is well-formed but the remote
+// backend has NOT been probed for actual reachability.
+//
+// Round-28 §11.4 audit (2026-05-17): the previous EnsureReady
+// body carried an inline `// In production, this would SSH to
+// the host and verify the backend is running. For now, we
+// validate config.` comment — a textbook deferred-
+// implementation tell that misled callers gating on
+// `pool.EnsureReady() == nil` into believing the backend was
+// reachable. Config-validation passing is necessary but not
+// sufficient for end-user usability per CONST-035 / Article XI
+// §11.9. Callers MUST perform an independent reachability
+// probe (HTTP probe against the inference endpoint, TCP dial
+// against the backend port, or SSH check against the host)
+// until SSH-backed verification is wired into this package.
+//
+// Constitutional anchors: CONST-035 (anti-bluff), CONST-050(A)
+// (no-fakes-beyond-unit-tests), Article XI §11.9 (forensic
+// anchor).
+var ErrBackendVerificationNotImplemented = fmt.Errorf("visionengine: EnsureReady cannot verify backend availability without SSH wiring — config validation is necessary but not sufficient. Caller MUST verify backend reachability via independent health check (HTTP probe, TCP dial) until SSH-based verification is wired (§11.4 PASS-bluff: 'config-validated' ≠ 'backend-reachable')")
+
+// ErrShutdownRemoteCleanupNotImplemented is returned by
+// VisionPool.Shutdown to signal that local slot state was
+// cleared but remote llama-server / Ollama-server processes on
+// VisionPool.config.Host were NOT terminated.
+//
+// Round-28 §11.4 audit (2026-05-17): the previous Shutdown
+// documented "for llama.cpp backends, this terminates remote
+// server processes" but only cleared the local slots map.
+// That mismatch orphaned remote inference processes (port
+// leak, GPU-VRAM leak, per-host disk-cache growth) every time
+// a consuming process shut down. Doc-comment in the body — "in
+// production this would also SSH to the host and kill
+// llama-server processes" — was a textbook §11.4 deferred-
+// implementation tell that masked the live gap.
+//
+// Until SSH-backed remote-process termination is wired into
+// this package (it requires SSH credentials that the consuming
+// HelixCode runtime holds but VisionPool does not), callers
+// MUST explicitly terminate remote llama-server / Ollama-
+// server processes themselves. Shutdown also emits a WARN log
+// line per pool documenting the orphan state.
+//
+// Constitutional anchors: CONST-035 (anti-bluff), CONST-050(A)
+// (no-fakes-beyond-unit-tests), Article XI §11.9 (forensic
+// anchor).
+var ErrShutdownRemoteCleanupNotImplemented = fmt.Errorf("visionengine: Shutdown only clears local pool state; remote llama-server processes are NOT killed (orphan-process gap, §11.4 deferred-implementation). Caller MUST manually terminate remote llama-server processes until this is wired (e.g., via SSH client in the consuming process)")
 
 // InferenceBackend identifies the vision inference engine.
 const (
@@ -190,21 +241,45 @@ func NewVisionPool(config PoolConfig) *VisionPool {
 	}
 }
 
-// EnsureReady verifies that the inference backend is
-// available and responsive on the remote host.
+// EnsureReady validates the pool's PoolConfig and returns a
+// sentinel signalling that backend reachability has NOT been
+// probed.
+//
+// Round-28 §11.4 audit (2026-05-17): an earlier doc-comment
+// claimed EnsureReady "verifies that the inference backend is
+// available and responsive on the remote host", but its body
+// only validated configuration well-formedness. Any caller
+// gating on `pool.EnsureReady() == nil` therefore PASSed
+// against a non-reachable backend with no error surfaced.
+//
+// The honest contract is:
+//   - If PoolConfig is malformed (missing host, missing
+//     llama.cpp config when backend == BackendLlamaCpp, etc.)
+//     a descriptive `fmt.Errorf` value is returned.
+//   - If PoolConfig is well-formed, the function returns
+//     ErrBackendVerificationNotImplemented — config-validation
+//     passed, but backend reachability remains unproven until
+//     SSH-backed health-checks are wired into this package.
+//     Callers MUST perform an independent reachability probe
+//     (HTTP probe, TCP dial, SSH check) before treating the
+//     pool as usable.
+//
+// Returning the sentinel from the well-formed path is
+// deliberate per the operator anti-bluff mandate: a silent
+// `nil` return would re-introduce the bluff that motivated
+// this round-28 fix.
 func (p *VisionPool) EnsureReady(ctx context.Context) error {
+	_ = ctx // intentionally unused: this is a config-level check
 	if p.config.Host == "" {
 		return fmt.Errorf("remote: vision pool host is required")
 	}
-	// In production, this would SSH to the host and verify
-	// the backend is running. For now, we validate config.
 	if p.config.InferenceBackend == BackendLlamaCpp &&
 		p.config.LlamaCpp == nil {
 		return fmt.Errorf(
 			"remote: llama.cpp config required for backend %q",
 			BackendLlamaCpp)
 	}
-	return nil
+	return ErrBackendVerificationNotImplemented
 }
 
 // AssignSlots creates inference endpoint slots for each target
@@ -261,14 +336,53 @@ func (p *VisionPool) Size() int {
 	return len(p.slots)
 }
 
-// Shutdown gracefully stops all inference slots. For
-// llama.cpp backends, this terminates remote server processes.
-func (p *VisionPool) Shutdown(_ context.Context) {
+// Shutdown clears local inference-slot bookkeeping for this pool.
+//
+// IMPORTANT — round-28 §11.4 audit (2026-05-17): Shutdown does
+// NOT terminate remote llama-server / Ollama-server processes
+// on VisionPool.config.Host. Earlier revisions documented
+// termination but only cleared the local map, orphaning remote
+// processes (port + GPU-VRAM + disk-cache leak). The honest
+// behaviour is now reflected here, and Shutdown returns
+// ErrShutdownRemoteCleanupNotImplemented so callers can detect
+// the gap programmatically. A WARN log line is also emitted per
+// pool summarising the orphan-process state (host, backend,
+// base port, slot count, leaked endpoints) so operational
+// dashboards surface the leak.
+//
+// Callers MUST explicitly terminate remote inference processes
+// themselves (e.g. via the SSH client they already hold to
+// deploy llama-server) until SSH-backed cleanup is wired into
+// this package.
+//
+// Local pool state is ALWAYS cleared — Shutdown never
+// short-circuits on the sentinel. The sentinel exists purely
+// to give callers visibility into the orphan-process gap.
+func (p *VisionPool) Shutdown(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	// Clear slots; in production this would also SSH to
-	// the host and kill llama-server processes.
+
+	host := p.config.Host
+	backend := p.config.InferenceBackend
+	basePort := p.config.BasePort
+	slotCount := len(p.slots)
+
+	// Snapshot the per-slot endpoint range so the WARN line can
+	// list concrete leaked endpoints rather than just a count.
+	leakedEndpoints := make([]string, 0, slotCount)
+	for _, slot := range p.slots {
+		leakedEndpoints = append(leakedEndpoints, slot.Endpoint)
+	}
+
+	// Local pool state is always cleared — that part of
+	// Shutdown's contract has never been the gap; the gap is
+	// remote cleanup.
 	p.slots = make(map[string]*VisionSlot)
+
+	log.Printf("WARN visionengine/remote.VisionPool.Shutdown: local pool state cleared but %d remote %s slot(s) on host=%q (base port=%d, endpoints=%v) were NOT terminated — caller must SSH-kill llama-server/ollama-server processes manually. See ErrShutdownRemoteCleanupNotImplemented.",
+		slotCount, backend, host, basePort, leakedEndpoints)
+
+	return ErrShutdownRemoteCleanupNotImplemented
 }
 
 // slotKey generates a unique key for a platform+device pair.
