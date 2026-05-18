@@ -5,6 +5,7 @@ package llmvision
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 )
@@ -20,7 +21,15 @@ type FallbackProvider struct {
 // Providers are tried in the order given.
 func NewFallbackProvider(providers ...VisionProvider) (*FallbackProvider, error) {
 	if len(providers) == 0 {
-		return nil, fmt.Errorf("at least one provider is required")
+		// CONST-046: user-facing error message routed through the
+		// package-level translator. NoopTranslator path yields the
+		// bundled English fallback.
+		return nil, errors.New(resolveOrFallback(
+			context.Background(),
+			pkgTranslator,
+			"visionengine_provider_fallback_requires_one",
+			fallbackProviderFallbackRequiresOne,
+		))
 	}
 	return &FallbackProvider{
 		providers: providers,

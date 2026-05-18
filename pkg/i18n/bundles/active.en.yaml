@@ -1,0 +1,20 @@
+# VisionEngine module — English bundle (active).
+# Per CONST-046, every user-facing string in the VisionEngine module
+# resolves through pkg/i18n.Translator at the call site. This bundle
+# is the English fallback consumed when a consuming project wires a
+# YAML-loading translator. The NoopTranslator (default, standalone)
+# returns the msgID directly; the call site assembles the user-visible
+# string from the literal embedded alongside the migration (see the
+# i18n_defaults.go file in the consuming package).
+#
+# IDs are prefixed `visionengine_` per the CONST-046 cross-submodule
+# convention so a single consuming-project bundle can merge entries
+# from many submodules without collision.
+schema_version: 1
+locale: en
+entries:
+  visionengine_stub_screen_title: "Unknown Screen"
+  visionengine_stub_screen_description: "Stub analysis - install OpenCV or use LLM vision for detailed analysis"
+  visionengine_stub_screen_unknown_category: "Unknown"
+  visionengine_provider_fallback_requires_one: "at least one provider is required"
+  visionengine_provider_fallback_all_failed: "all providers failed, last error: %v"
