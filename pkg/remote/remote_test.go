@@ -6,6 +6,7 @@ package remote_test
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -164,6 +165,113 @@ func TestVisionPool_Shutdown_EmptyPool(t *testing.T) {
 	require.True(t, errors.Is(err, remote.ErrShutdownRemoteCleanupNotImplemented),
 		"expected errors.Is(err, ErrShutdownRemoteCleanupNotImplemented), got: %v", err)
 	assert.Equal(t, 0, pool.Size())
+}
+
+// TestShutdown_NoSSHConfigured_ReturnsSentinel — round-40 regression
+// guard: a pool constructed WITHOUT WithSSHConfig() MUST still return
+// the round-27 ErrShutdownRemoteCleanupNotImplemented sentinel,
+// preserving the contract for legacy callers.
+func TestShutdown_NoSSHConfigured_ReturnsSentinel(t *testing.T) {
+	pool := remote.NewVisionPool(remote.PoolConfig{
+		Host:     "thinker.local",
+		BasePort: 8080,
+	})
+	assert.False(t, pool.SSHConfigured(), "SSH must be unconfigured for this test")
+	pool.AssignSlots([]remote.SlotTarget{{Platform: "android"}})
+
+	err := pool.Shutdown(context.Background())
+	require.Error(t, err)
+	require.ErrorIs(t, err, remote.ErrShutdownRemoteCleanupNotImplemented,
+		"unconfigured-SSH path MUST surface the round-27 sentinel — round-40 wiring must NOT silently swallow it")
+}
+
+// TestShutdown_SSHKeyMissing_ReturnsKeyParseError — round-40: when
+// SSHConfig is populated but KeyPath points to a non-existent file,
+// Shutdown returns ErrSSHKeyParseFailed (not the round-27 sentinel).
+func TestShutdown_SSHKeyMissing_ReturnsKeyParseError(t *testing.T) {
+	pool := remote.NewVisionPool(remote.PoolConfig{
+		Host:     "thinker.local",
+		BasePort: 8080,
+	}).WithSSHConfig(remote.SSHConfig{
+		Host:           "thinker.local",
+		User:           "test",
+		KeyPath:        "/nonexistent/path/to/key",
+		KnownHostsPath: "/nonexistent/path/to/known_hosts",
+	})
+	assert.True(t, pool.SSHConfigured())
+
+	err := pool.Shutdown(context.Background())
+	require.Error(t, err)
+	require.ErrorIs(t, err, remote.ErrSSHKeyParseFailed,
+		"missing/unreadable key MUST surface ErrSSHKeyParseFailed")
+	require.NotErrorIs(t, err, remote.ErrShutdownRemoteCleanupNotImplemented,
+		"SSH-configured path MUST NOT surface the round-27 sentinel — that is the unconfigured-SSH signal")
+}
+
+// TestShutdown_EmptyKnownHostsPath_ReturnsHostKeyError — round-40
+// paired-mutation guard: empty KnownHostsPath MUST be rejected at
+// dial time so CONST-035 (no silent unknown-host acceptance) holds.
+func TestShutdown_EmptyKnownHostsPath_ReturnsHostKeyError(t *testing.T) {
+	pool := remote.NewVisionPool(remote.PoolConfig{
+		Host:     "thinker.local",
+		BasePort: 8080,
+	}).WithSSHConfig(remote.SSHConfig{
+		Host:           "thinker.local",
+		User:           "test",
+		KeyPath:        "/nonexistent/key",
+		KnownHostsPath: "", // CONST-035 violation: must be rejected
+	})
+
+	err := pool.Shutdown(context.Background())
+	require.Error(t, err)
+	require.ErrorIs(t, err, remote.ErrSSHHostKeyVerificationFailed,
+		"empty KnownHostsPath MUST surface ErrSSHHostKeyVerificationFailed (CONST-035)")
+}
+
+// TestSSHSentinels_AreDistinct — paired-mutation: each sentinel
+// MUST be distinguishable from the others via errors.Is, otherwise
+// callers cannot route remediation correctly.
+func TestSSHSentinels_AreDistinct(t *testing.T) {
+	assert.False(t, errors.Is(remote.ErrSSHKeyParseFailed, remote.ErrSSHHostKeyVerificationFailed))
+	assert.False(t, errors.Is(remote.ErrSSHHostKeyVerificationFailed, remote.ErrSSHKeyParseFailed))
+	assert.False(t, errors.Is(remote.ErrSSHKeyParseFailed, remote.ErrShutdownRemoteCleanupNotImplemented))
+	assert.False(t, errors.Is(remote.ErrShutdownRemoteCleanupNotImplemented, remote.ErrSSHKeyParseFailed))
+}
+
+// TestShutdown_AgainstRealSSHHost — integration test gated on real
+// SSH host env vars per the round-40 spec. Loud SKIP-OK marker so
+// `make no-silent-skips` surfaces the conditional coverage.
+//
+// To run: export VISIONENGINE_TEST_SSH_HOST=<host>
+//          VISIONENGINE_TEST_SSH_USER=<user>
+//          VISIONENGINE_TEST_SSH_KEY=/path/to/key
+//          VISIONENGINE_TEST_SSH_KNOWN_HOSTS=/path/to/known_hosts
+func TestShutdown_AgainstRealSSHHost(t *testing.T) {
+	host := os.Getenv("VISIONENGINE_TEST_SSH_HOST")
+	user := os.Getenv("VISIONENGINE_TEST_SSH_USER")
+	keyPath := os.Getenv("VISIONENGINE_TEST_SSH_KEY")
+	knownHosts := os.Getenv("VISIONENGINE_TEST_SSH_KNOWN_HOSTS")
+	if host == "" || user == "" || keyPath == "" || knownHosts == "" {
+		t.Skip("SKIP-OK: #VISIONENGINE-SSH-REAL-ROUND40 — requires real SSH host; set VISIONENGINE_TEST_SSH_{HOST,USER,KEY,KNOWN_HOSTS} to enable")
+	}
+
+	pool := remote.NewVisionPool(remote.PoolConfig{
+		Host:     host,
+		BasePort: 18080, // ephemeral; no real llama-server expected
+	}).WithSSHConfig(remote.SSHConfig{
+		Host:           host,
+		User:           user,
+		KeyPath:        keyPath,
+		KnownHostsPath: knownHosts,
+		Timeout:        15 * time.Second,
+	})
+	pool.AssignSlots([]remote.SlotTarget{{Platform: "test"}})
+
+	// Shutdown should succeed (fuser -k on an unused port + pkill
+	// sweep both no-op gracefully). Failure here means SSH wiring is
+	// broken end-to-end.
+	err := pool.Shutdown(context.Background())
+	require.NoError(t, err, "real SSH Shutdown must succeed against %s", host)
 }
 
 func TestVisionSlot_LockUnlock(t *testing.T) {

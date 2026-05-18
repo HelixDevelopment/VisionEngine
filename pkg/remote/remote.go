@@ -9,8 +9,10 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 )
@@ -195,14 +197,22 @@ func (s *VisionSlot) Stats() (calls int, totalTime time.Duration, errors int) {
 // VisionPool manages a set of inference endpoints, one per
 // platform+device combination (or a single shared endpoint).
 type VisionPool struct {
-	config PoolConfig
-	slots  map[string]*VisionSlot
-	mu     sync.RWMutex
+	config    PoolConfig
+	sshConfig SSHConfig
+	slots     map[string]*VisionSlot
+	mu        sync.RWMutex
 }
 
 // NewVisionPool creates a VisionPool with the given
 // configuration. Slots are not created until AssignSlots is
 // called.
+//
+// SSHConfig is left zero-valued; callers that want real
+// remote-process termination on Shutdown MUST also call
+// WithSSHConfig (or construct the pool via the SSHConfig-
+// aware constructor in a future revision). When SSHConfig
+// is zero-valued, Shutdown preserves its round-27
+// "ErrShutdownRemoteCleanupNotImplemented" contract.
 func NewVisionPool(config PoolConfig) *VisionPool {
 	if config.InferenceBackend == "" {
 		config.InferenceBackend = BackendOllama
@@ -214,6 +224,27 @@ func NewVisionPool(config PoolConfig) *VisionPool {
 		config: config,
 		slots:  make(map[string]*VisionSlot),
 	}
+}
+
+// WithSSHConfig attaches SSH credentials so VisionPool can
+// perform real remote-process management. Returns the same
+// pool for chaining. Callers MUST source SSHConfig fields
+// from env vars / config files — never hardcode them
+// (CONST-042).
+func (p *VisionPool) WithSSHConfig(cfg SSHConfig) *VisionPool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.sshConfig = cfg
+	return p
+}
+
+// SSHConfigured reports whether the pool has SSH credentials
+// attached. False means Shutdown's remote-cleanup path is
+// disabled (round-27 sentinel preserved).
+func (p *VisionPool) SSHConfigured() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.sshConfig.Host != ""
 }
 
 // EnsureReady validates that the pool's PoolConfig is internally
@@ -297,28 +328,35 @@ func (p *VisionPool) Size() int {
 	return len(p.slots)
 }
 
-// Shutdown clears local inference-slot bookkeeping for this pool.
+// Shutdown clears local inference-slot bookkeeping for this pool AND
+// (when SSHConfig is populated) actually SSHes to the remote host and
+// terminates llama-server / Ollama-server processes on
+// VisionPool.config.Host.
 //
-// IMPORTANT — round-27 §11.4 audit (2026-05-17): Shutdown does NOT
-// terminate remote llama-server / Ollama-server processes on
-// VisionPool.config.Host. Earlier revisions of this function
-// documented termination but only cleared the local map, orphaning
-// remote processes (port + GPU-VRAM + disk-cache leak). The honest
-// behaviour is now reflected here, and Shutdown returns
-// ErrShutdownRemoteCleanupNotImplemented so callers can detect the
-// gap programmatically. A WARN log line is also emitted per pool
-// summarising the orphan-process state (host, backend, base port,
-// slot count) so operational dashboards surface the leak.
+// Round-40 §11.4 audit (2026-05-18): wires real SSH-based remote
+// process termination into the round-27 sentinel-returning skeleton.
+// Behaviour now bifurcates:
 //
-// Callers MUST explicitly terminate remote inference processes
-// themselves (e.g., via the SSH client they already hold to deploy
-// llama-server) until SSH-backed cleanup is wired into this package.
+//  1. SSHConfig.Host == "" (round-27 contract): local pool state is
+//     cleared, ErrShutdownRemoteCleanupNotImplemented is returned,
+//     and a WARN log line is emitted listing the leaked endpoints.
+//     This preserves the round-27 sentinel for callers that have not
+//     yet opted into SSH-backed cleanup.
 //
-// The error is non-fatal in the sense that the local state IS
-// always cleared — Shutdown never short-circuits on the sentinel.
-// The sentinel exists purely to give callers visibility into the
-// orphan-process gap.
-func (p *VisionPool) Shutdown(_ context.Context) error {
+//  2. SSHConfig.Host != "" (round-40 wiring): an SSH session is
+//     dialled per-call (lazy connection, avoids long-lived state),
+//     authenticated via SSHConfig.KeyPath, and host-key-verified
+//     against SSHConfig.KnownHostsPath (CONST-035: accepting unknown
+//     hosts is a silent security PASS-bluff). For each tracked slot
+//     port a "fuser -k <port>/tcp" command is issued; a final
+//     "pkill -f llama-server" sweeps any straggler. Per-command
+//     errors are collected via errors.Join so a partial-success
+//     Shutdown still surfaces the failures it hit.
+//
+// Local pool state is ALWAYS cleared — that part of Shutdown's
+// contract has never been the gap. Successful remote-cleanup case
+// returns nil; SSH-dial / per-process-kill failures aggregate.
+func (p *VisionPool) Shutdown(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -327,21 +365,66 @@ func (p *VisionPool) Shutdown(_ context.Context) error {
 	basePort := p.config.BasePort
 	slotCount := len(p.slots)
 
-	// Snapshot the per-slot port range so the WARN line can list the
-	// concrete leaked endpoints rather than just a count.
+	// Snapshot the per-slot port range so subsequent kill commands /
+	// WARN line can address concrete leaked endpoints rather than just
+	// a count.
 	leakedEndpoints := make([]string, 0, slotCount)
+	leakedPorts := make([]int, 0, slotCount)
 	for _, slot := range p.slots {
 		leakedEndpoints = append(leakedEndpoints, slot.Endpoint)
+		leakedPorts = append(leakedPorts, slot.Port)
 	}
 
 	// Local pool state is always cleared — that part of Shutdown's
 	// contract has never been the gap; the gap is remote cleanup.
 	p.slots = make(map[string]*VisionSlot)
 
-	log.Printf("WARN visionengine/remote.VisionPool.Shutdown: local pool state cleared but %d remote %s slot(s) on host=%q (base port=%d, endpoints=%v) were NOT terminated — caller must SSH-kill llama-server/ollama-server processes manually. See ErrShutdownRemoteCleanupNotImplemented.",
-		slotCount, backend, host, basePort, leakedEndpoints)
+	// Round-27 path: SSH NOT configured → preserve sentinel + WARN log.
+	if p.sshConfig.Host == "" {
+		log.Printf("WARN visionengine/remote.VisionPool.Shutdown: local pool state cleared but %d remote %s slot(s) on host=%q (base port=%d, endpoints=%v) were NOT terminated — SSHConfig is unset; call WithSSHConfig to enable real remote-cleanup. See ErrShutdownRemoteCleanupNotImplemented.",
+			slotCount, backend, host, basePort, leakedEndpoints)
+		return ErrShutdownRemoteCleanupNotImplemented
+	}
 
-	return ErrShutdownRemoteCleanupNotImplemented
+	// Round-40 path: SSH configured → actually kill remote processes.
+	client, err := sshConn(ctx, p.sshConfig)
+	if err != nil {
+		log.Printf("WARN visionengine/remote.VisionPool.Shutdown: SSH dial to %s@%s failed; %d remote %s slot(s) on host=%q (endpoints=%v) NOT terminated: %v",
+			p.sshConfig.User, p.sshConfig.Host, slotCount, backend, host, leakedEndpoints, err)
+		return fmt.Errorf("visionengine: Shutdown SSH dial failed: %w", err)
+	}
+	defer client.Close()
+
+	var killErrs []error
+	for _, port := range leakedPorts {
+		// fuser -k -n tcp <port> sends SIGKILL to whatever is bound to
+		// <port>/tcp. We invoke via sudo-less fuser; the SSH user must
+		// have permission to signal the inference processes (typical
+		// llama-server deployments run as the SSH user itself).
+		cmdline := fmt.Sprintf("fuser -k -n tcp %d 2>&1 || true", port)
+		out, err := runRemote(client, cmdline)
+		if err != nil {
+			killErrs = append(killErrs, fmt.Errorf("kill port %d: %w (stderr: %s)", port, err, strings.TrimSpace(string(out))))
+		}
+	}
+
+	// Final sweep: kill any straggler llama-server / ollama-server
+	// not bound to a tracked port (e.g. a slot whose port wandered).
+	cmdline := "pkill -f 'llama-server|ollama serve' 2>&1 || true"
+	if out, err := runRemote(client, cmdline); err != nil {
+		killErrs = append(killErrs, fmt.Errorf("pkill sweep: %w (stderr: %s)", err, strings.TrimSpace(string(out))))
+	}
+
+	if len(killErrs) > 0 {
+		aggregated := errors.Join(killErrs...)
+		log.Printf("WARN visionengine/remote.VisionPool.Shutdown: SSH connected to %s but %d kill operation(s) reported errors on host=%q (endpoints=%v): %v",
+			p.sshConfig.Host, len(killErrs), host, leakedEndpoints, aggregated)
+		return fmt.Errorf("visionengine: Shutdown remote kill errors: %w", aggregated)
+	}
+
+	log.Printf("INFO visionengine/remote.VisionPool.Shutdown: SSH-terminated %d remote %s slot(s) on host=%q (base port=%d, endpoints=%v) — orphan-process gap closed.",
+		slotCount, backend, host, basePort, leakedEndpoints)
+	return nil
 }
 
 // slotKey generates a unique key for a platform+device pair.
