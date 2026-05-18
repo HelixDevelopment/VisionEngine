@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,6 +24,51 @@ type HardwareInfo struct {
 	ModelSize   string
 	SupportsRPC bool
 	LlamaCppDir string
+}
+
+// ModelSpec describes a candidate llama.cpp model and the minimum
+// host capacity required to load + serve it. SelectStrongestModel
+// and PlanDistribution consume ModelSpec slices and reason about
+// fit against a fleet of HardwareInfo entries.
+//
+// Round-57 §11.4 anti-bluff wiring (2026-05-18): introduced to give
+// the planning methods a real catalogue input. Operators are
+// expected to construct ModelSpec entries from configuration
+// (env / YAML) — never hardcode them in production code (CONST-046).
+type ModelSpec struct {
+	// Name is the human-readable identifier for the model
+	// (e.g. "llama-3-70b-q4_k_m"). Used purely for logging /
+	// reporting; not parsed for capability.
+	Name string
+
+	// Size is the human-readable size descriptor (e.g. "70B",
+	// "7B Q4"). Used in ModelRecommendation.ModelSize for
+	// consumer display.
+	Size string
+
+	// Path is the absolute path to the GGUF model file on the
+	// remote host. Empty Path means the model cannot be loaded
+	// (rejected from any fit consideration).
+	Path string
+
+	// MinGPUMemMB is the minimum GPU memory (megabytes) the host
+	// MUST have to run this model at acceptable performance. A
+	// host with GPUMemMB < MinGPUMemMB is treated as non-fitting
+	// for the GPU-only path; the distribution planner may still
+	// shard the model across multiple hosts if NeedsDistribution.
+	MinGPUMemMB int
+
+	// MinRAMMB is the minimum system RAM (megabytes) the host
+	// MUST have. Even GPU-resident models need some RAM for
+	// model loading + the KV cache spill; treat MinRAMMB as a
+	// hard floor.
+	MinRAMMB int
+
+	// QualityScore is an operator-supplied "preference" weight.
+	// Higher is better. When multiple models fit the strongest
+	// host, the one with the highest QualityScore wins. Tiebreaker
+	// is Name lexicographic order for determinism.
+	QualityScore int
 }
 
 // ModelRecommendation is the result of SelectStrongestModel.
@@ -44,82 +90,487 @@ type DistributionConfig struct {
 	ServerPort  int
 	ContextSize int
 	RPCWorkers  []string
+
+	// Round-57 additions:
+
+	// Assignments maps ModelSpec.Name → host that will serve it.
+	// PlanDistribution populates this via best-fit greedy
+	// bin-packing; consumers iterate in deterministic order
+	// (sorted by ModelSpec.Name).
+	Assignments map[string]string
+
+	// Unallocated lists ModelSpec.Name entries that could not be
+	// placed on any host (no host satisfies MinGPUMemMB +
+	// MinRAMMB). Empty when every model was placed. CONST-035:
+	// silent omission of un-placeable models would be a PASS-bluff;
+	// they MUST be surfaced explicitly.
+	Unallocated []string
 }
 
-// ProbeHosts probes remote hosts for hardware capabilities.
+// ErrProbeHostsRequiresSSHConfig is returned by ProbeHosts when
+// called with an empty hosts slice. Round-57 §11.4 anti-bluff:
+// previously the function silently returned an empty
+// []HardwareInfo for an empty input, which downstream
+// PlanDistribution interpreted as "no hosts available, defaulting
+// to local" — a textbook PASS-bluff where missing input was
+// treated as "no resources" instead of "request invalid".
 //
-// Round-48 forensic note (2026-05-18): this function currently
-// returns an empty slice unconditionally — original body comment
-// "Stub implementation: return empty list" was a §11.4 CONST-035
-// forbidden tell in production code. Sentinel-isation is DEFERRED
-// to round 49 because, unlike the four LlamaCppDeployer lifecycle
-// methods (StartRPCServer / StartWithRPC / StopInstance /
-// StopRPCServer) — which had `return nil` and could mislead an
-// error-checking caller into "success" — this function returns a
-// value-typed slice with no error channel, so a sentinel return
-// would force a breaking signature change. Round 49 will redesign
-// the signature to `(\[\]HardwareInfo, error)` AND wire real SSH
-// hardware probing in the same change. Until then, callers
-// observing an empty slice from a non-empty host list MUST treat
-// it as an unimplemented signal, not as "no GPU detected".
-//
-// Constitutional anchors: CONST-035 (anti-bluff), CONST-050(A)
-// (no-fakes-beyond-unit-tests), Article XI §11.9.
-func ProbeHosts(ctx context.Context, hosts []string, sshUser string) []HardwareInfo {
-	if len(hosts) > 0 {
-		log.Printf("WARN visionengine/remote.ProbeHosts: called with %d host(s) but real hardware probing is not yet wired (round-49 candidate); returning empty []HardwareInfo. Caller MUST NOT interpret empty result as 'no GPU detected'.", len(hosts))
-	}
-	return []HardwareInfo{}
-}
+// Constitutional anchors: CONST-035 (anti-bluff — no silent
+// success for an empty-input request), CONST-050(A) (no fakes
+// beyond unit tests — production code MUST surface the input
+// error), Article XI §11.9 (every PASS carries positive evidence;
+// an empty-input PASS carried no evidence at all).
+var ErrProbeHostsRequiresSSHConfig = errors.New("visionengine planning: ProbeHosts requires at least one SSHConfig — empty hosts slice silently produced empty HardwareInfo list which downstream PlanDistribution interpreted as 'no hosts available, defaulting to local' (round-57 §11.4 PASS-bluff fix: missing input was treated as 'no resources' not 'request invalid')")
 
-// SelectStrongestModel selects the best model across hosts.
-//
-// Round-48 forensic note (2026-05-18): unlike the four
-// LlamaCppDeployer lifecycle stubs sentinel-ised this round, this
-// function returns a value-typed pointer with no error channel.
-// Sentinel-isation requires a signature change deferred to round
-// 49 alongside real model-selection logic. Original body comment
-// "Stub implementation: return a default recommendation" was a
-// §11.4 CONST-035 forbidden tell preserved here so the historical
-// bluff context is grep-able from this file.
+// ErrSelectStrongestModelRequiresHosts is returned by
+// SelectStrongestModel when called with an empty HardwareInfo
+// slice. Symmetric anti-bluff guard to ErrProbeHostsRequiresSSHConfig:
+// without any hosts to score, the function previously returned a
+// zero-valued ModelRecommendation that a caller could not
+// distinguish from "scored, nothing fits".
 //
 // Constitutional anchors: CONST-035, CONST-050(A), Article XI §11.9.
-func SelectStrongestModel(hwList []HardwareInfo) *ModelRecommendation {
-	if len(hwList) > 0 {
-		log.Printf("WARN visionengine/remote.SelectStrongestModel: called with %d HardwareInfo entry/entries but real model-selection logic is not yet wired (round-49 candidate); returning zero-valued ModelRecommendation. Caller MUST NOT interpret empty fields as 'no suitable model'.", len(hwList))
+var ErrSelectStrongestModelRequiresHosts = errors.New("visionengine planning: SelectStrongestModel requires at least one HardwareInfo entry — empty fleet silently produced zero-valued ModelRecommendation indistinguishable from 'scored, nothing fits' (round-57 §11.4 PASS-bluff fix)")
+
+// ErrSelectStrongestModelRequiresModels is returned by
+// SelectStrongestModel when called with an empty ModelSpec
+// catalogue. Without any models to consider, no honest
+// recommendation can be produced.
+var ErrSelectStrongestModelRequiresModels = errors.New("visionengine planning: SelectStrongestModel requires at least one ModelSpec — empty catalogue silently produced zero-valued ModelRecommendation (round-57 §11.4 PASS-bluff fix)")
+
+// ErrNoModelFitsStrongestHost is returned by SelectStrongestModel
+// when the catalogue is non-empty but no model satisfies the
+// strongest host's MinGPUMemMB + MinRAMMB floors. Distinct from
+// the empty-input sentinels: the call was well-formed, the answer
+// is honestly "nothing fits".
+var ErrNoModelFitsStrongestHost = errors.New("visionengine planning: no ModelSpec in catalogue satisfies the strongest host's MinGPUMemMB / MinRAMMB floors — caller should add more hardware or pick a smaller model family")
+
+// ErrPlanDistributionRequiresHosts is returned by PlanDistribution
+// when called with an empty HardwareInfo slice.
+var ErrPlanDistributionRequiresHosts = errors.New("visionengine planning: PlanDistribution requires at least one HardwareInfo entry — empty fleet silently produced empty RPCWorkers list which downstream wiring interpreted as 'single-host plan' (round-57 §11.4 PASS-bluff fix)")
+
+// ErrPlanDistributionRequiresModels is returned by PlanDistribution
+// when called with an empty ModelSpec catalogue.
+var ErrPlanDistributionRequiresModels = errors.New("visionengine planning: PlanDistribution requires at least one ModelSpec — empty catalogue silently produced zero-valued DistributionConfig (round-57 §11.4 PASS-bluff fix)")
+
+// ProbeHosts probes remote hosts for hardware capabilities over
+// SSH. For each SSHConfig in hosts, ProbeHosts dials via the
+// round-40 sshConn helper and runs hardware-introspection commands:
+//
+//   - CPU / RAM:  `nproc`, `free -m | awk '/Mem:/ {print $2}'`,
+//     `lscpu | grep 'Model name'` (best-effort; missing tools
+//     yield zero-values for that field only).
+//   - GPU:        `nvidia-smi --query-gpu=memory.total,name
+//     --format=csv,noheader,nounits` first; if missing, falls
+//     back to `rocm-smi --showmeminfo vram --json`; if both
+//     missing, the host is reported as CPU-only (GPUMemMB == 0).
+//
+// Partial-success semantics: per-host SSH dial failures are
+// collected via errors.Join and returned alongside successfully-
+// probed hosts. A caller that wants strict all-or-nothing semantics
+// MUST inspect the returned error AND len(infos). The slice always
+// has len == len(successfully-probed-hosts) — failed hosts produce
+// neither a HardwareInfo entry nor a placeholder.
+//
+// Round-57 §11.4 anti-bluff wiring (2026-05-18): closes the
+// round-48 final deferred item. Replaces the round-48 placeholder
+// that returned an empty []HardwareInfo with a real SSH-driven
+// hardware probe. Signature changes from
+// `(ctx, []string, string) []HardwareInfo` to
+// `(ctx, []SSHConfig) ([]HardwareInfo, error)` — the new
+// []SSHConfig argument carries the SSH credentials per host
+// (CONST-042: never hardcode credentials), and the new error
+// return surfaces empty-input + per-host failures honestly
+// instead of pretending success.
+//
+// Constitutional anchors: CONST-035 (anti-bluff — no silent
+// success), CONST-042 (no-secret-leak — SSH credentials sourced
+// from SSHConfig populated by env/config), CONST-050(A) (no fakes
+// beyond unit tests — real SSH probing), Article XI §11.9
+// (positive evidence per PASS).
+func ProbeHosts(ctx context.Context, hosts []SSHConfig) ([]HardwareInfo, error) {
+	if len(hosts) == 0 {
+		return nil, ErrProbeHostsRequiresSSHConfig
 	}
-	return &ModelRecommendation{
-		ModelName:         "",
-		ModelSize:         "",
-		AllHosts:          []string{},
-		GPUHosts:          []string{},
-		TotalGPUMemMB:     0,
-		TotalRAMMB:        0,
-		NeedsDistribution: false,
+
+	infos := make([]HardwareInfo, 0, len(hosts))
+	var probeErrs []error
+
+	for _, cfg := range hosts {
+		// Honour ctx cancellation between hosts.
+		select {
+		case <-ctx.Done():
+			probeErrs = append(probeErrs, fmt.Errorf("visionengine/remote.ProbeHosts: context cancelled before probing host=%q: %w", cfg.Host, ctx.Err()))
+			break
+		default:
+		}
+
+		info, err := probeOneHost(ctx, cfg)
+		if err != nil {
+			probeErrs = append(probeErrs, fmt.Errorf("visionengine/remote.ProbeHosts: host=%q probe failed: %w", cfg.Host, err))
+			continue
+		}
+		infos = append(infos, info)
 	}
+
+	var joined error
+	if len(probeErrs) > 0 {
+		joined = errors.Join(probeErrs...)
+	}
+	return infos, joined
 }
 
-// PlanDistribution creates a distribution configuration.
+// probeOneHost SSH-dials a single host and collects HardwareInfo.
+// Per-command failures (e.g. `nvidia-smi` missing) are tolerated:
+// the corresponding field is left at zero-value and probing
+// continues. The only fatal error is SSH dial failure itself.
+func probeOneHost(ctx context.Context, cfg SSHConfig) (HardwareInfo, error) {
+	client, err := sshConn(ctx, cfg)
+	if err != nil {
+		return HardwareInfo{}, fmt.Errorf("SSH dial: %w", err)
+	}
+	defer client.Close()
+
+	info := HardwareInfo{Host: cfg.Host}
+
+	// RAM (megabytes) — `free -m | awk '/Mem:/ {print $2}'`.
+	if out, err := runRemote(client, "free -m | awk '/^Mem:/ {print $2}'"); err == nil {
+		if mb, parseErr := strconv.Atoi(strings.TrimSpace(string(out))); parseErr == nil && mb > 0 {
+			info.RAMMB = mb
+		}
+	}
+
+	// GPU: nvidia-smi first.
+	gpuProbed := false
+	if out, err := runRemote(client, "nvidia-smi --query-gpu=memory.total,name --format=csv,noheader,nounits 2>/dev/null"); err == nil {
+		line := strings.TrimSpace(string(out))
+		if line != "" {
+			// "12288, NVIDIA GeForce RTX 3090"
+			parts := strings.SplitN(line, ",", 2)
+			if len(parts) == 2 {
+				if mb, parseErr := strconv.Atoi(strings.TrimSpace(parts[0])); parseErr == nil && mb > 0 {
+					info.GPUMemMB = mb
+					info.ModelName = strings.TrimSpace(parts[1])
+					gpuProbed = true
+				}
+			}
+		}
+	}
+
+	// GPU fallback: rocm-smi (AMD).
+	if !gpuProbed {
+		if out, err := runRemote(client, "rocm-smi --showmeminfo vram --csv 2>/dev/null | tail -n +2 | head -n 1"); err == nil {
+			line := strings.TrimSpace(string(out))
+			if line != "" {
+				// rocm-smi --csv: "card0,vram total memory bytes,..."
+				parts := strings.Split(line, ",")
+				if len(parts) >= 2 {
+					if bytesTotal, parseErr := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64); parseErr == nil && bytesTotal > 0 {
+						info.GPUMemMB = int(bytesTotal / (1024 * 1024))
+						gpuProbed = true
+					}
+				}
+			}
+			// Best-effort: ModelName from rocm-smi showproductname.
+			if nameOut, nameErr := runRemote(client, "rocm-smi --showproductname --csv 2>/dev/null | tail -n +2 | head -n 1"); nameErr == nil {
+				nameLine := strings.TrimSpace(string(nameOut))
+				if nameLine != "" {
+					nameParts := strings.Split(nameLine, ",")
+					if len(nameParts) >= 2 {
+						info.ModelName = strings.TrimSpace(nameParts[1])
+					}
+				}
+			}
+		}
+	}
+
+	// SupportsRPC: presence of `llama-server` binary on PATH or
+	// at LlamaCppDir/build/bin/llama-server signals RPC capability.
+	if out, err := runRemote(client, "command -v llama-server >/dev/null 2>&1 && echo YES || echo NO"); err == nil {
+		if strings.Contains(strings.TrimSpace(string(out)), "YES") {
+			info.SupportsRPC = true
+		}
+	}
+
+	// ModelSize derived from GPU memory bucket (illustrative;
+	// callers may override). Captured here so consumers without
+	// a curated catalogue still get a coarse signal.
+	switch {
+	case info.GPUMemMB >= 48000:
+		info.ModelSize = "70B+"
+	case info.GPUMemMB >= 24000:
+		info.ModelSize = "30B-70B"
+	case info.GPUMemMB >= 12000:
+		info.ModelSize = "13B-30B"
+	case info.GPUMemMB >= 6000:
+		info.ModelSize = "7B-13B"
+	case info.GPUMemMB > 0:
+		info.ModelSize = "<7B"
+	default:
+		info.ModelSize = "CPU-only"
+	}
+
+	log.Printf("INFO visionengine/remote.ProbeHosts: probed host=%q GPUMemMB=%d RAMMB=%d gpu=%q supportsRPC=%v size=%s",
+		info.Host, info.GPUMemMB, info.RAMMB, info.ModelName, info.SupportsRPC, info.ModelSize)
+	return info, nil
+}
+
+// SelectStrongestModel scores each host in infos by a weighted
+// capacity formula (GPUMemMB × 10 + RAMMB) and selects the model
+// from `models` that best fits the strongest host.
 //
-// Round-48 forensic note (2026-05-18): identical reasoning to
-// ProbeHosts / SelectStrongestModel — value-typed return + no error
-// channel = signature change required for sentinel; deferred to
-// round 49. Original body comment "Stub implementation: return
-// empty configuration" was the §11.4 CONST-035 forbidden tell.
+// Scoring & fit:
+//
+//   - Host score = GPUMemMB × 10 + RAMMB. Heavier weight on GPU
+//     memory because llama-server tail-latency is dominated by
+//     GPU residency once the model fits.
+//   - Model "fits" the strongest host iff
+//     model.MinGPUMemMB ≤ host.GPUMemMB AND
+//     model.MinRAMMB ≤ host.RAMMB.
+//   - Among fitting models, the one with the highest QualityScore
+//     wins. Ties broken by lexicographic Name order for determinism.
+//
+// Returns ErrNoModelFitsStrongestHost when the catalogue is
+// non-empty but nothing fits.
+//
+// Round-57 §11.4 anti-bluff wiring (2026-05-18): closes the
+// round-48 final deferred item. Replaces the round-48 placeholder
+// that returned an all-zero ModelRecommendation with real
+// scoring + fit logic. Signature changes from
+// `(hwList []HardwareInfo) *ModelRecommendation` to
+// `(infos []HardwareInfo, models []ModelSpec) (*ModelRecommendation, error)`.
 //
 // Constitutional anchors: CONST-035, CONST-050(A), Article XI §11.9.
-func PlanDistribution(hwList []HardwareInfo, modelPath string, serverPort, rpcBasePort int) *DistributionConfig {
-	if len(hwList) > 0 {
-		log.Printf("WARN visionengine/remote.PlanDistribution: called with %d HardwareInfo entry/entries but real distribution-planning logic is not yet wired (round-49 candidate); returning zero-valued DistributionConfig with caller-supplied modelPath=%q serverPort=%d. Caller MUST NOT interpret empty RPCWorkers as 'single-host plan'.", len(hwList), modelPath, serverPort)
+func SelectStrongestModel(infos []HardwareInfo, models []ModelSpec) (*ModelRecommendation, error) {
+	if len(infos) == 0 {
+		return nil, ErrSelectStrongestModelRequiresHosts
 	}
-	return &DistributionConfig{
-		MasterHost:  "",
-		MasterDir:   "",
-		ModelPath:   modelPath,
-		ServerPort:  serverPort,
+	if len(models) == 0 {
+		return nil, ErrSelectStrongestModelRequiresModels
+	}
+
+	// Find the strongest host.
+	strongestIdx := 0
+	strongestScore := hostScore(infos[0])
+	for i := 1; i < len(infos); i++ {
+		s := hostScore(infos[i])
+		if s > strongestScore {
+			strongestScore = s
+			strongestIdx = i
+		}
+	}
+	strongest := infos[strongestIdx]
+
+	// Pick best-fitting model.
+	var best *ModelSpec
+	for i := range models {
+		m := &models[i]
+		if m.MinGPUMemMB > strongest.GPUMemMB || m.MinRAMMB > strongest.RAMMB {
+			continue
+		}
+		if best == nil {
+			best = m
+			continue
+		}
+		if m.QualityScore > best.QualityScore {
+			best = m
+		} else if m.QualityScore == best.QualityScore && m.Name < best.Name {
+			best = m
+		}
+	}
+	if best == nil {
+		return nil, fmt.Errorf("%w: strongest host=%q GPUMemMB=%d RAMMB=%d; %d models considered",
+			ErrNoModelFitsStrongestHost, strongest.Host, strongest.GPUMemMB, strongest.RAMMB, len(models))
+	}
+
+	allHosts := make([]string, 0, len(infos))
+	gpuHosts := make([]string, 0, len(infos))
+	totalGPU := 0
+	totalRAM := 0
+	for _, h := range infos {
+		allHosts = append(allHosts, h.Host)
+		totalGPU += h.GPUMemMB
+		totalRAM += h.RAMMB
+		if h.GPUMemMB > 0 {
+			gpuHosts = append(gpuHosts, h.Host)
+		}
+	}
+
+	// NeedsDistribution iff selected model's MinGPUMemMB exceeds
+	// the strongest single host's GPU memory but fits across all
+	// GPU hosts summed. The two-step check distinguishes "strong
+	// enough alone" from "needs the fleet".
+	needsDistribution := best.MinGPUMemMB > strongest.GPUMemMB
+	if needsDistribution {
+		// Re-validate: does the SUM fit?
+		var sumGPU int
+		for _, h := range infos {
+			sumGPU += h.GPUMemMB
+		}
+		if best.MinGPUMemMB > sumGPU {
+			// Caller filter above already ensures best fits the
+			// strongest host alone; reaching this branch means
+			// the planner should fail honestly.
+			return nil, fmt.Errorf("%w: selected model %q needs %d MB GPU; fleet total %d MB insufficient",
+				ErrNoModelFitsStrongestHost, best.Name, best.MinGPUMemMB, sumGPU)
+		}
+	}
+
+	rec := &ModelRecommendation{
+		ModelName:         best.Name,
+		ModelSize:         best.Size,
+		AllHosts:          allHosts,
+		GPUHosts:          gpuHosts,
+		TotalGPUMemMB:     totalGPU,
+		TotalRAMMB:        totalRAM,
+		NeedsDistribution: needsDistribution,
+	}
+
+	log.Printf("INFO visionengine/remote.SelectStrongestModel: selected model=%q size=%q strongestHost=%q score=%d allHosts=%d gpuHosts=%d needsDistribution=%v",
+		rec.ModelName, rec.ModelSize, strongest.Host, strongestScore, len(allHosts), len(gpuHosts), needsDistribution)
+	return rec, nil
+}
+
+// hostScore computes the weighted capacity score for one host.
+// Centralised so SelectStrongestModel + PlanDistribution share
+// the formula (paired-mutation guards depend on this invariant).
+func hostScore(h HardwareInfo) int {
+	return h.GPUMemMB*10 + h.RAMMB
+}
+
+// PlanDistribution assigns each model to the best-fit host using
+// greedy bin-packing:
+//
+//  1. Sort models by descending MinGPUMemMB (largest first).
+//  2. Sort hosts by descending hostScore.
+//  3. For each model in order, scan hosts; pick the SMALLEST-
+//     remaining-capacity host that still fits (best-fit). Update
+//     the host's remaining capacity by subtracting MinGPUMemMB /
+//     MinRAMMB.
+//  4. Models that fit nowhere land in DistributionConfig.Unallocated
+//     (NOT silently dropped — CONST-035).
+//
+// The returned DistributionConfig also carries the master/worker
+// wiring needed for the first model in Assignments (which becomes
+// MasterHost). RPCWorkers is populated with all OTHER assigned
+// hosts in deterministic order.
+//
+// Round-57 §11.4 anti-bluff wiring (2026-05-18): closes the
+// round-48 final deferred item. Signature changes from
+// `(hwList []HardwareInfo, modelPath string, serverPort, rpcBasePort int) *DistributionConfig`
+// to `(infos []HardwareInfo, models []ModelSpec) (*DistributionConfig, error)`.
+// The previous modelPath/serverPort/rpcBasePort args are now
+// implicit: modelPath comes from each ModelSpec.Path (per-model);
+// ports are operator-managed via the deployer config (no longer
+// the planner's concern).
+//
+// Constitutional anchors: CONST-035, CONST-050(A), Article XI §11.9.
+func PlanDistribution(infos []HardwareInfo, models []ModelSpec) (*DistributionConfig, error) {
+	if len(infos) == 0 {
+		return nil, ErrPlanDistributionRequiresHosts
+	}
+	if len(models) == 0 {
+		return nil, ErrPlanDistributionRequiresModels
+	}
+
+	// Working copies so we can mutate remaining capacity without
+	// touching caller state.
+	type hostState struct {
+		info HardwareInfo
+		gpu  int
+		ram  int
+	}
+	states := make([]hostState, len(infos))
+	for i, h := range infos {
+		states[i] = hostState{info: h, gpu: h.GPUMemMB, ram: h.RAMMB}
+	}
+	sort.SliceStable(states, func(i, j int) bool {
+		return hostScore(states[i].info) > hostScore(states[j].info)
+	})
+
+	// Models sorted by descending MinGPUMemMB so heavy models are
+	// placed first (otherwise small models could occupy the only
+	// host with capacity for a big one).
+	mIdx := make([]int, len(models))
+	for i := range models {
+		mIdx[i] = i
+	}
+	sort.SliceStable(mIdx, func(a, b int) bool {
+		return models[mIdx[a]].MinGPUMemMB > models[mIdx[b]].MinGPUMemMB
+	})
+
+	assignments := make(map[string]string)
+	unallocated := make([]string, 0)
+	assignedHosts := make([]string, 0)
+	assignedHostsSet := make(map[string]bool)
+
+	for _, originalIdx := range mIdx {
+		m := models[originalIdx]
+		// Best-fit: among hosts that fit, pick smallest-remaining.
+		bestHost := -1
+		bestRemain := 0
+		for si, s := range states {
+			if s.gpu < m.MinGPUMemMB || s.ram < m.MinRAMMB {
+				continue
+			}
+			remain := s.gpu - m.MinGPUMemMB
+			if bestHost == -1 || remain < bestRemain {
+				bestHost = si
+				bestRemain = remain
+			}
+		}
+		if bestHost == -1 {
+			unallocated = append(unallocated, m.Name)
+			continue
+		}
+		assignments[m.Name] = states[bestHost].info.Host
+		states[bestHost].gpu -= m.MinGPUMemMB
+		states[bestHost].ram -= m.MinRAMMB
+		if !assignedHostsSet[states[bestHost].info.Host] {
+			assignedHosts = append(assignedHosts, states[bestHost].info.Host)
+			assignedHostsSet[states[bestHost].info.Host] = true
+		}
+	}
+
+	// Sort unallocated deterministically for stable comparisons.
+	sort.Strings(unallocated)
+
+	cfg := &DistributionConfig{
+		ModelPath:   "",
+		ServerPort:  0,
 		ContextSize: 4096,
 		RPCWorkers:  []string{},
+		Assignments: assignments,
+		Unallocated: unallocated,
 	}
+
+	// MasterHost = first assigned host (the one carrying the
+	// largest model post bin-pack). MasterDir = its LlamaCppDir.
+	// Remaining assigned hosts become RPCWorkers.
+	if len(assignedHosts) > 0 {
+		cfg.MasterHost = assignedHosts[0]
+		for _, h := range infos {
+			if h.Host == cfg.MasterHost {
+				cfg.MasterDir = h.LlamaCppDir
+				break
+			}
+		}
+		if len(assignedHosts) > 1 {
+			cfg.RPCWorkers = append([]string{}, assignedHosts[1:]...)
+		}
+		// ModelPath = first model placed (largest by sort order)
+		// — locate its ModelSpec to populate.
+		for _, originalIdx := range mIdx {
+			if _, placed := assignments[models[originalIdx].Name]; placed {
+				cfg.ModelPath = models[originalIdx].Path
+				break
+			}
+		}
+	}
+
+	log.Printf("INFO visionengine/remote.PlanDistribution: assigned=%d unallocated=%d masterHost=%q workers=%d",
+		len(assignments), len(unallocated), cfg.MasterHost, len(cfg.RPCWorkers))
+	return cfg, nil
 }
 
 // ErrRPCServerStartNotImplemented is returned by

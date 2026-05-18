@@ -622,4 +622,317 @@ func TestLlamaCppDeployer_RPCLifecycle_AgainstRealSSHHost(t *testing.T) {
 	assert.False(t, stillTracked, "successful StopInstance MUST remove instance from tracking")
 }
 
+// --- Round-57 §11.4 anti-bluff wiring tests for the 3 planning methods ---
+//
+// Round-57 closes the round-48 final deferred item by adding signature
+// breaks + real wiring to ProbeHosts / SelectStrongestModel /
+// PlanDistribution. The unit tests below cover:
+//   - Empty-input sentinel paths (3 sentinels: ErrProbeHostsRequiresSSHConfig,
+//     ErrSelectStrongestModelRequiresHosts, ErrPlanDistributionRequiresHosts).
+//   - Pure-logic correctness on constructed inputs (deterministic).
+//   - Sentinel pairwise distinctness vs round-48 + round-52 sentinels.
+//   - Env-gated real-SSH integration for ProbeHosts.
+//
+// Constitutional anchors: CONST-035, CONST-042, CONST-050(A)+(B), Article XI §11.9.
 
+// TestProbeHosts_EmptyHosts_ReturnsSentinel — round-57 anti-bluff guard.
+// Empty hosts slice previously produced an empty []HardwareInfo silently;
+// the new contract surfaces ErrProbeHostsRequiresSSHConfig.
+func TestProbeHosts_EmptyHosts_ReturnsSentinel(t *testing.T) {
+	infos, err := ProbeHosts(context.Background(), nil)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrProbeHostsRequiresSSHConfig)
+	assert.Nil(t, infos, "empty-input MUST return nil slice alongside sentinel")
+
+	infos2, err2 := ProbeHosts(context.Background(), []SSHConfig{})
+	require.Error(t, err2)
+	require.ErrorIs(t, err2, ErrProbeHostsRequiresSSHConfig)
+	assert.Nil(t, infos2)
+}
+
+// TestProbeHosts_SSHFailures_CollectedPerHost — round-57 partial-success
+// guard. Per-host SSH dial failures are collected via errors.Join while
+// successfully-probed hosts are still returned. Here all 3 hosts have
+// nonexistent keys → all 3 dial failures collected, infos len == 0.
+func TestProbeHosts_SSHFailures_CollectedPerHost(t *testing.T) {
+	hosts := []SSHConfig{
+		{Host: "host-a", User: "u", KeyPath: "/nonexistent/key-a", KnownHostsPath: "/nonexistent/kh"},
+		{Host: "host-b", User: "u", KeyPath: "/nonexistent/key-b", KnownHostsPath: "/nonexistent/kh"},
+		{Host: "host-c", User: "u", KeyPath: "/nonexistent/key-c", KnownHostsPath: "/nonexistent/kh"},
+	}
+	infos, err := ProbeHosts(context.Background(), hosts)
+	require.Error(t, err, "all-hosts-fail run MUST surface joined error")
+	assert.Empty(t, infos, "no host successfully probed → empty infos")
+
+	// Joined error MUST mention every failing host (proves we didn't
+	// short-circuit after the first failure).
+	msg := err.Error()
+	assert.Contains(t, msg, "host-a", "joined error MUST mention host-a")
+	assert.Contains(t, msg, "host-b", "joined error MUST mention host-b")
+	assert.Contains(t, msg, "host-c", "joined error MUST mention host-c")
+
+	// Joined error MUST be unwrappable to ErrSSHKeyParseFailed (every
+	// host hit the same missing-key path).
+	assert.ErrorIs(t, err, ErrSSHKeyParseFailed,
+		"joined error MUST unwrap to ErrSSHKeyParseFailed for any host")
+}
+
+// TestProbeHosts_RealSSHIntegration — round-57 env-gated real-SSH limb
+// per CONST-050(B). Skipped with loud SKIP-OK marker when env vars are
+// absent so `make no-silent-skips` surfaces the conditional coverage.
+func TestProbeHosts_RealSSHIntegration(t *testing.T) {
+	host := os.Getenv("VISIONENGINE_TEST_SSH_HOST")
+	user := os.Getenv("VISIONENGINE_TEST_SSH_USER")
+	keyPath := os.Getenv("VISIONENGINE_TEST_SSH_KEY")
+	knownHosts := os.Getenv("VISIONENGINE_TEST_SSH_KNOWN_HOSTS")
+	if host == "" || user == "" || keyPath == "" || knownHosts == "" {
+		t.Skip("SKIP-OK: #VISIONENGINE-PLANNING-REAL-ROUND57 — requires real SSH host; set VISIONENGINE_TEST_SSH_{HOST,USER,KEY,KNOWN_HOSTS} to enable")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cfgs := []SSHConfig{{
+		Host:           host,
+		User:           user,
+		KeyPath:        keyPath,
+		KnownHostsPath: knownHosts,
+		Timeout:        10 * time.Second,
+	}}
+	infos, err := ProbeHosts(ctx, cfgs)
+	require.NoError(t, err, "real-SSH ProbeHosts MUST succeed against configured host")
+	require.Len(t, infos, 1)
+	assert.Equal(t, host, infos[0].Host)
+	t.Logf("real-SSH probe: host=%q GPUMemMB=%d RAMMB=%d gpu=%q supportsRPC=%v size=%s",
+		infos[0].Host, infos[0].GPUMemMB, infos[0].RAMMB, infos[0].ModelName, infos[0].SupportsRPC, infos[0].ModelSize)
+}
+
+// TestSelectStrongestModel_EmptyInfos_ReturnsSentinel — round-57 anti-bluff.
+func TestSelectStrongestModel_EmptyInfos_ReturnsSentinel(t *testing.T) {
+	rec, err := SelectStrongestModel(nil, []ModelSpec{{Name: "m", MinGPUMemMB: 1}})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSelectStrongestModelRequiresHosts)
+	assert.Nil(t, rec)
+}
+
+// TestSelectStrongestModel_EmptyModels_ReturnsSentinel — round-57 anti-bluff.
+func TestSelectStrongestModel_EmptyModels_ReturnsSentinel(t *testing.T) {
+	rec, err := SelectStrongestModel([]HardwareInfo{{Host: "h", GPUMemMB: 24000, RAMMB: 64000}}, nil)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrSelectStrongestModelRequiresModels)
+	assert.Nil(t, rec)
+}
+
+// TestSelectStrongestModel_ScoresByGPUMemoryThenRAM — round-57 pure-logic
+// correctness. Constructed inputs, deterministic outputs.
+//
+// Fleet:
+//   - small: 8 GB GPU, 16 GB RAM → score = 80000 + 16000 = 96000
+//   - mid:   24 GB GPU, 64 GB RAM → score = 240000 + 64000 = 304000
+//   - big:   48 GB GPU, 128 GB RAM → score = 480000 + 128000 = 608000  ← strongest
+//
+// Catalogue:
+//   - tiny:  needs 4 GB GPU, 8 GB RAM, quality=1
+//   - good:  needs 20 GB GPU, 32 GB RAM, quality=5  ← best fit on "big"
+//   - huge:  needs 80 GB GPU (does NOT fit any single host) → tiebroken out
+//
+// Expected: rec.ModelName == "good" (highest quality among fitters).
+func TestSelectStrongestModel_ScoresByGPUMemoryThenRAM(t *testing.T) {
+	infos := []HardwareInfo{
+		{Host: "small", GPUMemMB: 8000, RAMMB: 16000},
+		{Host: "mid", GPUMemMB: 24000, RAMMB: 64000},
+		{Host: "big", GPUMemMB: 48000, RAMMB: 128000},
+	}
+	models := []ModelSpec{
+		{Name: "tiny", Size: "1B", MinGPUMemMB: 4000, MinRAMMB: 8000, QualityScore: 1},
+		{Name: "good", Size: "13B", MinGPUMemMB: 20000, MinRAMMB: 32000, QualityScore: 5},
+		{Name: "huge", Size: "70B", MinGPUMemMB: 80000, MinRAMMB: 200000, QualityScore: 10},
+	}
+
+	rec, err := SelectStrongestModel(infos, models)
+	require.NoError(t, err)
+	require.NotNil(t, rec)
+	assert.Equal(t, "good", rec.ModelName,
+		"strongest host fits 'good' with quality=5 > 'tiny' quality=1; 'huge' does not fit")
+	assert.Equal(t, "13B", rec.ModelSize)
+	assert.ElementsMatch(t, []string{"small", "mid", "big"}, rec.AllHosts)
+	assert.ElementsMatch(t, []string{"small", "mid", "big"}, rec.GPUHosts)
+	assert.Equal(t, 80000, rec.TotalGPUMemMB)
+	assert.Equal(t, 208000, rec.TotalRAMMB)
+	assert.False(t, rec.NeedsDistribution,
+		"'good' fits the strongest host alone — no distribution needed")
+}
+
+// TestSelectStrongestModel_NoFit_ReturnsNoFitSentinel — round-57: a
+// non-empty catalogue with NO fitting model surfaces ErrNoModelFitsStrongestHost.
+func TestSelectStrongestModel_NoFit_ReturnsNoFitSentinel(t *testing.T) {
+	infos := []HardwareInfo{{Host: "weak", GPUMemMB: 4000, RAMMB: 8000}}
+	models := []ModelSpec{
+		{Name: "big", MinGPUMemMB: 24000, MinRAMMB: 64000, QualityScore: 10},
+	}
+	rec, err := SelectStrongestModel(infos, models)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNoModelFitsStrongestHost)
+	assert.Nil(t, rec)
+}
+
+// TestSelectStrongestModel_QualityTiebreakLexicographic — round-57:
+// when two fitting models have equal QualityScore, the lexicographically-
+// earlier Name wins (determinism guarantee).
+func TestSelectStrongestModel_QualityTiebreakLexicographic(t *testing.T) {
+	infos := []HardwareInfo{{Host: "h", GPUMemMB: 24000, RAMMB: 64000}}
+	models := []ModelSpec{
+		{Name: "zebra", MinGPUMemMB: 8000, MinRAMMB: 16000, QualityScore: 5},
+		{Name: "alpha", MinGPUMemMB: 8000, MinRAMMB: 16000, QualityScore: 5},
+	}
+	rec, err := SelectStrongestModel(infos, models)
+	require.NoError(t, err)
+	assert.Equal(t, "alpha", rec.ModelName,
+		"equal-quality models: lexicographic tiebreak picks 'alpha' over 'zebra'")
+}
+
+// TestPlanDistribution_EmptyInfos_ReturnsSentinel — round-57 anti-bluff.
+func TestPlanDistribution_EmptyInfos_ReturnsSentinel(t *testing.T) {
+	cfg, err := PlanDistribution(nil, []ModelSpec{{Name: "m"}})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrPlanDistributionRequiresHosts)
+	assert.Nil(t, cfg)
+}
+
+// TestPlanDistribution_EmptyModels_ReturnsSentinel — round-57 anti-bluff.
+func TestPlanDistribution_EmptyModels_ReturnsSentinel(t *testing.T) {
+	cfg, err := PlanDistribution([]HardwareInfo{{Host: "h", GPUMemMB: 24000, RAMMB: 64000}}, nil)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrPlanDistributionRequiresModels)
+	assert.Nil(t, cfg)
+}
+
+// TestPlanDistribution_BestFitGreedy — round-57 pure-logic correctness.
+//
+// Fleet (sorted by score):
+//   - big:  GPU 48000, RAM 128000  (score 608000)
+//   - mid:  GPU 24000, RAM 64000   (score 304000)
+//   - small:GPU 8000,  RAM 16000   (score 96000)
+//
+// Models (sorted by descending MinGPUMemMB):
+//   - heavy: needs 40000 GPU, 100000 RAM → best-fit "big" (remaining 8000)
+//   - mid_m: needs 20000 GPU, 32000 RAM  → best-fit "mid" (remaining 4000)
+//     ("big" remaining is 8000, doesn't fit; "mid" 24000 fits with 4000 left)
+//   - light: needs 4000 GPU,  4000 RAM   → best-fit "small" (remaining 4000)
+//     ("big" remaining 8000 → 4000 left; "mid" remaining 4000 → 0 left;
+//      "small" 8000 → 4000 left; "mid" leaves smaller remainder, picked.)
+//
+// Wait: re-check. After heavy on "big" (rem 8000) and mid_m on "mid"
+// (rem 4000), for light (4000 GPU):
+//   - big rem 8000 → after subtract: 4000 left
+//   - mid rem 4000 → after subtract: 0 left  ← smallest remainder → wins
+//   - small 8000 → after subtract: 4000 left
+//
+// So light → "mid". Assignments: heavy→big, mid_m→mid, light→mid.
+func TestPlanDistribution_BestFitGreedy(t *testing.T) {
+	infos := []HardwareInfo{
+		{Host: "small", GPUMemMB: 8000, RAMMB: 16000, LlamaCppDir: "/opt/lc"},
+		{Host: "big", GPUMemMB: 48000, RAMMB: 128000, LlamaCppDir: "/opt/lc"},
+		{Host: "mid", GPUMemMB: 24000, RAMMB: 64000, LlamaCppDir: "/opt/lc"},
+	}
+	models := []ModelSpec{
+		{Name: "light", Path: "/m/light.gguf", MinGPUMemMB: 4000, MinRAMMB: 4000, QualityScore: 1},
+		{Name: "heavy", Path: "/m/heavy.gguf", MinGPUMemMB: 40000, MinRAMMB: 100000, QualityScore: 10},
+		{Name: "mid_m", Path: "/m/mid.gguf", MinGPUMemMB: 20000, MinRAMMB: 32000, QualityScore: 5},
+	}
+
+	cfg, err := PlanDistribution(infos, models)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, "big", cfg.Assignments["heavy"], "heavy MUST land on big (only host that fits)")
+	assert.Equal(t, "mid", cfg.Assignments["mid_m"], "mid_m MUST land on mid (best-fit after big is consumed)")
+	assert.Equal(t, "mid", cfg.Assignments["light"], "light MUST land on mid (smallest remainder after mid_m)")
+	assert.Empty(t, cfg.Unallocated, "all models fit somewhere")
+
+	// MasterHost = first-assigned host (the one taking the largest model).
+	assert.Equal(t, "big", cfg.MasterHost, "MasterHost MUST be the host hosting the largest model")
+	assert.Equal(t, "/opt/lc", cfg.MasterDir)
+	assert.Equal(t, "/m/heavy.gguf", cfg.ModelPath,
+		"ModelPath MUST be the Path of the largest placed model")
+}
+
+// TestPlanDistribution_UnallocatedModelsReported — round-57: models that
+// fit nowhere MUST surface in Unallocated rather than being silently
+// dropped.
+func TestPlanDistribution_UnallocatedModelsReported(t *testing.T) {
+	infos := []HardwareInfo{{Host: "weak", GPUMemMB: 8000, RAMMB: 16000}}
+	models := []ModelSpec{
+		{Name: "fits", MinGPUMemMB: 4000, MinRAMMB: 4000},
+		{Name: "too_big", MinGPUMemMB: 100000, MinRAMMB: 200000},
+		{Name: "also_too_big", MinGPUMemMB: 80000, MinRAMMB: 150000},
+	}
+	cfg, err := PlanDistribution(infos, models)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Equal(t, "weak", cfg.Assignments["fits"])
+	assert.ElementsMatch(t, []string{"also_too_big", "too_big"}, cfg.Unallocated,
+		"models that fit nowhere MUST appear in Unallocated (sorted for determinism)")
+}
+
+// TestRound57PlanningSentinels_AllDistinct — round-57 paired-mutation
+// guard: the 3 new planning sentinels MUST be pairwise distinguishable
+// via errors.Is, AND distinct from round-48's 4 lifecycle sentinels
+// AND from round-52's 3 (Found/Launch/Readiness) AND from
+// ErrNoModelFitsStrongestHost. Total: 11 sentinels in pkg/remote
+// distributed.go now.
+func TestRound57PlanningSentinels_AllDistinct(t *testing.T) {
+	round57Empty := []error{
+		ErrProbeHostsRequiresSSHConfig,
+		ErrSelectStrongestModelRequiresHosts,
+		ErrSelectStrongestModelRequiresModels,
+		ErrPlanDistributionRequiresHosts,
+		ErrPlanDistributionRequiresModels,
+	}
+	round57Fit := []error{ErrNoModelFitsStrongestHost}
+	round48 := []error{
+		ErrRPCServerStartNotImplemented,
+		ErrRPCServerStartWithRPCNotImplemented,
+		ErrRPCServerStopInstanceNotImplemented,
+		ErrRPCServerStopNotImplemented,
+	}
+	round52 := []error{
+		ErrRPCInstanceNotFound,
+		ErrRPCLaunchFailed,
+		ErrRPCReadinessProbeFailed,
+	}
+
+	// All round-57 empty-input sentinels pairwise distinct.
+	for i, a := range round57Empty {
+		for j, b := range round57Empty {
+			if i == j {
+				continue
+			}
+			assert.False(t, errors.Is(a, b),
+				"round-57 empty-input sentinels MUST be pairwise distinct: %v vs %v", a, b)
+		}
+	}
+
+	// Round-57 sentinels distinct from round-48 + round-52.
+	all57 := append(append([]error{}, round57Empty...), round57Fit...)
+	for _, n := range all57 {
+		for _, r48 := range round48 {
+			assert.False(t, errors.Is(n, r48),
+				"round-57 sentinel %q MUST NOT collapse into round-48 %q", n, r48)
+			assert.False(t, errors.Is(r48, n),
+				"round-48 %q MUST NOT collapse into round-57 %q", r48, n)
+		}
+		for _, r52 := range round52 {
+			assert.False(t, errors.Is(n, r52),
+				"round-57 sentinel %q MUST NOT collapse into round-52 %q", n, r52)
+			assert.False(t, errors.Is(r52, n),
+				"round-52 %q MUST NOT collapse into round-57 %q", r52, n)
+		}
+	}
+
+	// Cross-package distinctness vs round-27 sibling.
+	for _, n := range all57 {
+		assert.False(t, errors.Is(n, ErrShutdownRemoteCleanupNotImplemented),
+			"round-57 sentinel %q MUST NOT collapse into round-27 ErrShutdownRemoteCleanupNotImplemented", n)
+	}
+}
