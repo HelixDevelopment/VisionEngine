@@ -5,6 +5,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,27 +98,107 @@ func TestLlamaCppDeployer_sshCmd_EmptyHostError(t *testing.T) {
 		"error message MUST identify the missing-host condition")
 }
 
-// TestLlamaCppDeployer_RPCStubs_NoCrash documents the round-40
-// behaviour of the four RPC-related lifecycle methods on
-// LlamaCppDeployer (StartRPCServer / StartWithRPC / StopInstance
-// / StopRPCServer): they are intentionally no-op stubs in
-// distributed.go (return nil unconditionally). Production callers
-// rely on this no-op behaviour so RPC-disabled deployments do
-// not error out. If the stubs are ever wired to real SSH calls,
-// this test will need re-targeting — that is the anti-bluff
-// canary moment.
-func TestLlamaCppDeployer_RPCStubs_NoCrash(t *testing.T) {
+// TestLlamaCppDeployer_RPCStubs_ReturnSentinels — round-48 §11.4
+// anti-bluff canary tightening (2026-05-18, supersedes round-47
+// commit 5496b2d's `TestLlamaCppDeployer_RPCStubs_NoCrash`). The
+// four RPC-related lifecycle methods on LlamaCppDeployer
+// (StartRPCServer / StartWithRPC / StopInstance / StopRPCServer)
+// previously returned nil under `// Stub: do nothing.` comments —
+// a CONST-035 forbidden tell in production code. Round 48 replaces
+// each `return nil` with a distinct sentinel error per
+// pkg/remote/distributed.go. This test asserts each method now
+// returns its named sentinel via errors.Is.
+//
+// When round 49 wires real SSH-driven RPC lifecycle, this test
+// MUST be re-targeted (or retired alongside its sibling
+// integration test that exercises real `llama-server --rpc`) —
+// that is the next anti-bluff canary moment.
+//
+// Constitutional anchors: CONST-035 (anti-bluff), CONST-050(A)
+// (no-fakes-beyond-unit-tests), Article XI §11.9 forensic anchor.
+func TestLlamaCppDeployer_RPCStubs_ReturnSentinels(t *testing.T) {
 	d := NewLlamaCppDeployer(LlamaCppConfig{Host: "gpu.local"})
 	ctx := context.Background()
 
-	assert.NoError(t, d.StartRPCServer(ctx, 9000),
-		"StartRPCServer stub MUST return nil per round-40 contract")
-	assert.NoError(t, d.StartWithRPC(ctx, "/models/m.gguf", []string{}, 9001),
-		"StartWithRPC stub MUST return nil per round-40 contract")
-	assert.NoError(t, d.StopInstance(ctx, 9001),
-		"StopInstance stub MUST return nil per round-40 contract")
-	assert.NoError(t, d.StopRPCServer(ctx, 9000),
-		"StopRPCServer stub MUST return nil per round-40 contract")
+	t.Run("StartRPCServer", func(t *testing.T) {
+		err := d.StartRPCServer(ctx, 9000)
+		require.Error(t, err,
+			"StartRPCServer stub MUST return non-nil error per round-48 sentinel contract")
+		require.True(t, errors.Is(err, ErrRPCServerStartNotImplemented),
+			"StartRPCServer MUST return ErrRPCServerStartNotImplemented; got: %v", err)
+	})
+
+	t.Run("StartWithRPC", func(t *testing.T) {
+		err := d.StartWithRPC(ctx, "/models/m.gguf", []string{}, 9001)
+		require.Error(t, err,
+			"StartWithRPC stub MUST return non-nil error per round-48 sentinel contract")
+		require.True(t, errors.Is(err, ErrRPCServerStartWithRPCNotImplemented),
+			"StartWithRPC MUST return ErrRPCServerStartWithRPCNotImplemented; got: %v", err)
+	})
+
+	t.Run("StopInstance", func(t *testing.T) {
+		err := d.StopInstance(ctx, 9001)
+		require.Error(t, err,
+			"StopInstance stub MUST return non-nil error per round-48 sentinel contract")
+		require.True(t, errors.Is(err, ErrRPCServerStopInstanceNotImplemented),
+			"StopInstance MUST return ErrRPCServerStopInstanceNotImplemented; got: %v", err)
+	})
+
+	t.Run("StopRPCServer", func(t *testing.T) {
+		err := d.StopRPCServer(ctx, 9000)
+		require.Error(t, err,
+			"StopRPCServer stub MUST return non-nil error per round-48 sentinel contract")
+		require.True(t, errors.Is(err, ErrRPCServerStopNotImplemented),
+			"StopRPCServer MUST return ErrRPCServerStopNotImplemented; got: %v", err)
+	})
+}
+
+// TestDistributedSentinels_AllFour_Distinct — round-48 §11.4
+// paired-mutation guard (2026-05-18) following the round-44
+// 5-sentinel distinctness pattern in remote_test.go's
+// TestSSHSentinels_AreDistinct. Each of the four round-48
+// distributed-RPC sentinels MUST be pairwise distinguishable via
+// errors.Is, otherwise callers cannot route remediation correctly
+// (e.g. "StartRPCServer failed" vs "StopInstance failed" carry
+// very different operational meanings even though both are
+// currently unimplemented).
+//
+// The test also asserts cross-package distinctness against the
+// round-27 sibling ErrShutdownRemoteCleanupNotImplemented (declared
+// in remote.go) — the four round-48 sentinels MUST NOT collapse
+// into that older one despite the overlapping "remote llama-server
+// lifecycle is not wired" semantic.
+//
+// Constitutional anchors: CONST-035 (anti-bluff distinctness),
+// CONST-050(A), Article XI §11.9.
+func TestDistributedSentinels_AllFour_Distinct(t *testing.T) {
+	sentinels := map[string]error{
+		"ErrRPCServerStartNotImplemented":        ErrRPCServerStartNotImplemented,
+		"ErrRPCServerStartWithRPCNotImplemented": ErrRPCServerStartWithRPCNotImplemented,
+		"ErrRPCServerStopInstanceNotImplemented": ErrRPCServerStopInstanceNotImplemented,
+		"ErrRPCServerStopNotImplemented":         ErrRPCServerStopNotImplemented,
+	}
+
+	// Pairwise distinctness across the four round-48 sentinels.
+	for nameA, a := range sentinels {
+		for nameB, b := range sentinels {
+			if nameA == nameB {
+				assert.True(t, errors.Is(a, b),
+					"sentinel %s MUST satisfy errors.Is against itself", nameA)
+				continue
+			}
+			assert.False(t, errors.Is(a, b),
+				"sentinel %s MUST NOT be confusable with %s via errors.Is", nameA, nameB)
+		}
+	}
+
+	// Cross-package distinctness vs round-27 sibling.
+	for name, s := range sentinels {
+		assert.False(t, errors.Is(s, ErrShutdownRemoteCleanupNotImplemented),
+			"round-48 sentinel %s MUST NOT collapse into round-27 ErrShutdownRemoteCleanupNotImplemented", name)
+		assert.False(t, errors.Is(ErrShutdownRemoteCleanupNotImplemented, s),
+			"round-27 ErrShutdownRemoteCleanupNotImplemented MUST NOT collapse into round-48 sentinel %s", name)
+	}
 }
 
 // --- Skipped scenarios (preserved audit trail per CONST-035) ---
