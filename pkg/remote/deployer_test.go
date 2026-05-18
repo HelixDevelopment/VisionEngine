@@ -5,178 +5,153 @@ package remote
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewDeployer_Defaults(t *testing.T) {
-	d := NewDeployer(Config{Host: "test.local"})
-	assert.Equal(t, 22, d.cfg.Port)
-	assert.Equal(t, "llava:7b", d.cfg.Model)
-	assert.Equal(t, 11434, d.cfg.OllamaPort)
+// Round-47 §11.4 anti-bluff repair (2026-05-18): the original
+// deployer_test.go targeted an Ollama-flavoured Deployer with an
+// HTTP client + Endpoint/Status surface. That type no longer
+// exists in production — round-40 wiring (commit 1169213) settled
+// the package on a llama.cpp-flavoured LlamaCppDeployer whose
+// constructor is NewLlamaCppDeployer(LlamaCppConfig{...}) and
+// whose surface is purely SSH-driven (FreeGPU / StartInstance /
+// RestoreOllama / StartRPCServer / StartWithRPC / StopInstance /
+// StopRPCServer). Old-API → new-API mapping:
+//
+//	OLD                          NEW
+//	NewDeployer(...)             NewLlamaCppDeployer(...)
+//	Config{Host,User,Port,       LlamaCppConfig{Host,User,RepoDir,
+//	  Model,OllamaPort}            ModelPath,MMProjPath,BasePort,
+//	                               GPULayers,ContextSize}
+//	d.cfg                        d.config
+//	d.client / d.Endpoint() /    (removed — Ollama HTTP surface
+//	d.Status() / d.isModelPulled  was lifted out of the package)
+//
+// Old TestDeployer_IsModelPulled_*, TestDeployer_Endpoint*,
+// TestDeployer_Status_Unreachable, TestDeployer_APICheck_Success
+// scenarios are NOT expressible against the new API (the surface
+// they exercised was deleted). They are recorded as skipped here
+// with SKIP-OK markers per CONST-035 (loud-absence-of-coverage
+// preferred over silent deletion of audit trail), referencing the
+// round-27 (76452da) and round-40 (1169213) forensic anchors.
+//
+// Constitutional anchors: CONST-035 (anti-bluff), CONST-050(A)
+// (no-fakes-beyond-unit-tests — unit-test file, mocks-free
+// reconstruction), Article XI §11.9 forensic anchor (a test that
+// does not compile is a §11.4 PASS-bluff equivalent: any
+// "go test ./..." PASS claim is a bluff while the test file
+// itself fails to build).
+
+func TestNewLlamaCppDeployer_DefaultsViaZeroConfig(t *testing.T) {
+	d := NewLlamaCppDeployer(LlamaCppConfig{Host: "test.local"})
+	require.NotNil(t, d)
+	assert.Equal(t, "test.local", d.config.Host)
+	// LlamaCppConfig has no implicit defaults applied by the
+	// constructor (round-40 design: config is a literal value).
+	assert.Equal(t, "", d.config.User)
+	assert.Equal(t, 0, d.config.BasePort)
+	assert.Equal(t, 0, d.config.GPULayers)
+	assert.Equal(t, 0, d.config.ContextSize)
+	assert.Equal(t, "", d.config.RepoDir)
+	assert.Equal(t, "", d.config.ModelPath)
+	assert.Equal(t, "", d.config.MMProjPath)
 }
 
-func TestNewDeployer_CustomConfig(t *testing.T) {
-	d := NewDeployer(Config{
-		Host:       "gpu.local",
-		User:       "admin",
-		Port:       2222,
-		Model:      "minicpm-v:8b",
-		OllamaPort: 11435,
+func TestNewLlamaCppDeployer_CustomConfig(t *testing.T) {
+	d := NewLlamaCppDeployer(LlamaCppConfig{
+		Host:        "gpu.local",
+		User:        "admin",
+		RepoDir:     "~/llama.cpp",
+		ModelPath:   "/models/llava.gguf",
+		MMProjPath:  "/models/mmproj.gguf",
+		BasePort:    8080,
+		GPULayers:   -1,
+		ContextSize: 4096,
 	})
-	assert.Equal(t, "gpu.local", d.cfg.Host)
-	assert.Equal(t, "admin", d.cfg.User)
-	assert.Equal(t, 2222, d.cfg.Port)
-	assert.Equal(t, "minicpm-v:8b", d.cfg.Model)
-	assert.Equal(t, 11435, d.cfg.OllamaPort)
+	require.NotNil(t, d)
+	assert.Equal(t, "gpu.local", d.config.Host)
+	assert.Equal(t, "admin", d.config.User)
+	assert.Equal(t, "~/llama.cpp", d.config.RepoDir)
+	assert.Equal(t, "/models/llava.gguf", d.config.ModelPath)
+	assert.Equal(t, "/models/mmproj.gguf", d.config.MMProjPath)
+	assert.Equal(t, 8080, d.config.BasePort)
+	assert.Equal(t, -1, d.config.GPULayers)
+	assert.Equal(t, 4096, d.config.ContextSize)
 }
+
+// TestLlamaCppDeployer_sshCmd_EmptyHostError asserts the
+// behavioural guarantee documented in deployer.go: sshCmd
+// returns an error when Host is unset, instead of silently
+// invoking ssh with an empty target (which would otherwise be a
+// silent CONST-035 PASS-bluff — the deployer would appear to
+// "work" while shipping garbage to ssh).
+func TestLlamaCppDeployer_sshCmd_EmptyHostError(t *testing.T) {
+	d := NewLlamaCppDeployer(LlamaCppConfig{})
+	ctx := context.Background()
+	err := d.sshCmd(ctx, "true")
+	require.Error(t, err, "sshCmd MUST error when Host is empty")
+	assert.Contains(t, err.Error(), "host is required",
+		"error message MUST identify the missing-host condition")
+}
+
+// TestLlamaCppDeployer_RPCStubs_NoCrash documents the round-40
+// behaviour of the four RPC-related lifecycle methods on
+// LlamaCppDeployer (StartRPCServer / StartWithRPC / StopInstance
+// / StopRPCServer): they are intentionally no-op stubs in
+// distributed.go (return nil unconditionally). Production callers
+// rely on this no-op behaviour so RPC-disabled deployments do
+// not error out. If the stubs are ever wired to real SSH calls,
+// this test will need re-targeting — that is the anti-bluff
+// canary moment.
+func TestLlamaCppDeployer_RPCStubs_NoCrash(t *testing.T) {
+	d := NewLlamaCppDeployer(LlamaCppConfig{Host: "gpu.local"})
+	ctx := context.Background()
+
+	assert.NoError(t, d.StartRPCServer(ctx, 9000),
+		"StartRPCServer stub MUST return nil per round-40 contract")
+	assert.NoError(t, d.StartWithRPC(ctx, "/models/m.gguf", []string{}, 9001),
+		"StartWithRPC stub MUST return nil per round-40 contract")
+	assert.NoError(t, d.StopInstance(ctx, 9001),
+		"StopInstance stub MUST return nil per round-40 contract")
+	assert.NoError(t, d.StopRPCServer(ctx, 9000),
+		"StopRPCServer stub MUST return nil per round-40 contract")
+}
+
+// --- Skipped scenarios (preserved audit trail per CONST-035) ---
+//
+// The four tests below were valid against the old NewDeployer /
+// Config API which exposed an embedded HTTP client + Endpoint() +
+// Status() + isModelPulled() surface tailored to Ollama. That
+// surface was deleted from pkg/remote when the package was
+// re-scoped to llama.cpp-only SSH lifecycle management
+// (round-40 / commit 1169213). The Ollama HTTP surface now lives
+// in pkg/llmvision/ollama.go and is exercised by that package's
+// own tests. These markers keep the audit trail loud rather than
+// silently deleting the historical scenarios.
 
 func TestDeployer_Endpoint(t *testing.T) {
-	d := NewDeployer(Config{Host: "gpu.local"})
-	assert.Equal(t,
-		"http://gpu.local:11434",
-		d.Endpoint(),
-	)
+	t.Skip("SKIP-OK: #round-47-api-drift — Endpoint() surface removed in round-40 re-scope to llama.cpp-only; Ollama HTTP polling now lives in pkg/llmvision/ollama.go (see round-27 76452da, round-40 1169213)")
 }
 
 func TestDeployer_Endpoint_CustomPort(t *testing.T) {
-	d := NewDeployer(Config{
-		Host:       "gpu.local",
-		OllamaPort: 8080,
-	})
-	assert.Equal(t,
-		"http://gpu.local:8080",
-		d.Endpoint(),
-	)
+	t.Skip("SKIP-OK: #round-47-api-drift — Endpoint() surface removed in round-40 re-scope to llama.cpp-only (see round-27 76452da, round-40 1169213)")
 }
 
 func TestDeployer_IsModelPulled_Found(t *testing.T) {
-	srv := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			resp := map[string]interface{}{
-				"models": []map[string]interface{}{
-					{"name": "llava:7b"},
-					{"name": "qwen2.5:7b"},
-				},
-			}
-			json.NewEncoder(w).Encode(resp)
-		}),
-	)
-	defer srv.Close()
-
-	d := NewDeployer(Config{
-		Host:  "localhost",
-		Model: "llava:7b",
-	})
-	// Override endpoint by parsing test server URL.
-	d.cfg.Host = srv.Listener.Addr().String()
-	d.cfg.OllamaPort = 0 // Use raw address.
-
-	// Directly test isModelPulled by hitting the test
-	// server.
-	ctx := context.Background()
-	apiURL := "http://" + srv.Listener.Addr().String() + "/api/tags"
-	req, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, apiURL, nil,
-	)
-	require.NoError(t, err)
-	resp, err := d.client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	var tagsResp struct {
-		Models []struct {
-			Name string `json:"name"`
-		} `json:"models"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&tagsResp)
-	require.NoError(t, err)
-
-	found := false
-	for _, m := range tagsResp.Models {
-		if m.Name == "llava:7b" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "model should be found")
+	t.Skip("SKIP-OK: #round-47-api-drift — isModelPulled / d.client HTTP surface removed in round-40 re-scope; Ollama model-presence checks now live in pkg/llmvision/ollama.go (see round-27 76452da, round-40 1169213)")
 }
 
 func TestDeployer_IsModelPulled_NotFound(t *testing.T) {
-	srv := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			resp := map[string]interface{}{
-				"models": []map[string]interface{}{
-					{"name": "qwen2.5:7b"},
-				},
-			}
-			json.NewEncoder(w).Encode(resp)
-		}),
-	)
-	defer srv.Close()
-
-	ctx := context.Background()
-	apiURL := "http://" + srv.Listener.Addr().String() + "/api/tags"
-	req, err := http.NewRequestWithContext(
-		ctx, http.MethodGet, apiURL, nil,
-	)
-	require.NoError(t, err)
-
-	d := NewDeployer(Config{Model: "llava:7b"})
-	resp, err := d.client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	var tagsResp struct {
-		Models []struct {
-			Name string `json:"name"`
-		} `json:"models"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&tagsResp)
-	require.NoError(t, err)
-
-	found := false
-	for _, m := range tagsResp.Models {
-		if m.Name == "llava:7b" {
-			found = true
-		}
-	}
-	assert.False(t, found, "model should not be found")
+	t.Skip("SKIP-OK: #round-47-api-drift — isModelPulled / d.client HTTP surface removed in round-40 re-scope (see round-27 76452da, round-40 1169213)")
 }
 
 func TestDeployer_Status_Unreachable(t *testing.T) {
-	d := NewDeployer(Config{
-		Host:       "192.0.2.1", // TEST-NET, unreachable
-		OllamaPort: 19999,
-	})
-	ctx := context.Background()
-	status := d.Status(ctx)
-	assert.False(t, status.OllamaRunning)
-	assert.False(t, status.ModelAvailable)
+	t.Skip("SKIP-OK: #round-47-api-drift — Status() / OllamaRunning / ModelAvailable surface removed in round-40 re-scope to llama.cpp-only; reachability checks belong to the consuming runtime that holds the SSH creds (see round-27 76452da, round-40 1169213)")
 }
 
 func TestDeployer_APICheck_Success(t *testing.T) {
-	srv := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"models":[]}`))
-		}),
-	)
-	defer srv.Close()
-
-	d := NewDeployer(Config{Host: "localhost"})
-	ctx := context.Background()
-	apiURL := "http://" + srv.Listener.Addr().String() + "/api/tags"
-	req, _ := http.NewRequestWithContext(
-		ctx, http.MethodGet, apiURL, nil,
-	)
-	resp, err := d.client.Do(req)
-	require.NoError(t, err)
-	resp.Body.Close()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	t.Skip("SKIP-OK: #round-47-api-drift — d.client HTTP surface removed in round-40 re-scope to llama.cpp-only; Ollama API health now lives in pkg/llmvision/ollama.go (see round-27 76452da, round-40 1169213)")
 }
