@@ -9,6 +9,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
+
+	"digital.vasic.visionengine/pkg/i18n"
 )
 
 // StubAnalyzer provides a stub implementation of Analyzer that works without OpenCV.
@@ -17,6 +19,18 @@ import (
 type StubAnalyzer struct {
 	// Provider is an optional LLM vision provider for intelligent analysis.
 	Provider LLMVisionProvider
+	// translator is the CONST-046 user-facing-string seam. nil falls
+	// back to i18n.NoopTranslator + bundled English fallback so the
+	// module stays standalone-buildable per CONST-051(B).
+	translator i18n.Translator
+}
+
+// SetTranslator wires a consuming-project Translator. nil resets to
+// NoopTranslator default. This is the CONST-046 seam — consumers that
+// want localized stub output wire here; standalone callers get the
+// bundled English fallback.
+func (s *StubAnalyzer) SetTranslator(tr i18n.Translator) {
+	s.translator = tr
 }
 
 // LLMVisionProvider is a simplified interface for LLM vision integration.
@@ -48,10 +62,12 @@ func (s *StubAnalyzer) AnalyzeScreen(ctx context.Context, screenshot []byte) (Sc
 	}
 
 	id := fingerprint(screenshot)
+	// CONST-046: user-facing Title + Description routed through Translator.
+	// NoopTranslator path yields the bundled English fallback.
 	return ScreenAnalysis{
 		ScreenID:    id,
-		Title:       "Unknown Screen",
-		Description: "Stub analysis - install OpenCV or use LLM vision for detailed analysis",
+		Title:       resolveOrFallback(ctx, s.translator, "visionengine_stub_screen_title", fallbackStubScreenTitle),
+		Description: resolveOrFallback(ctx, s.translator, "visionengine_stub_screen_description", fallbackStubScreenDescription),
 		Elements:    []UIElement{},
 		TextRegions: []TextRegion{},
 		Issues:      []VisualIssue{},
@@ -124,9 +140,11 @@ func (s *StubAnalyzer) IdentifyScreen(ctx context.Context, screenshot []byte) (S
 	}
 
 	fp := fingerprint(screenshot)
+	// CONST-046: user-facing Name routed through Translator. NoopTranslator
+	// path yields the bundled English "Unknown" fallback.
 	return ScreenIdentity{
 		ID:          fmt.Sprintf("screen-%s", fp[:8]),
-		Name:        "Unknown",
+		Name:        resolveOrFallback(ctx, s.translator, "visionengine_stub_screen_unknown_category", fallbackStubScreenUnknownCategory),
 		Category:    "unknown",
 		Fingerprint: fp,
 		Tags:        []string{},
