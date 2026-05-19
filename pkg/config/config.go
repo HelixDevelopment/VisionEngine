@@ -5,6 +5,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -134,49 +135,103 @@ func LoadFromEnv() Config {
 }
 
 // Validate checks that the configuration is valid.
+//
+// CONST-046 migration (round 218): every user-facing validation error
+// surfaced from this method is routed through the package-level
+// translator (see i18n_defaults.go) so consuming projects can localize
+// without forking the submodule. Standalone (NoopTranslator default)
+// path falls back to the bundled English literal via resolveOrFallback.
+// The astica branch still uses the legacy hardcoded literal — it is a
+// candidate for a subsequent migration round (out of scope for the
+// per-round 10-string ceiling).
 func (c Config) Validate() error {
+	ctx := context.Background()
 	validProviders := map[string]bool{
 		"auto": true, "openai": true, "anthropic": true, "gemini": true, "qwen": true,
 		"kimi": true, "stepgui": true, "astica": true,
 	}
 	if !validProviders[c.VisionProvider] {
-		return fmt.Errorf("%w: unknown vision provider %q", ErrInvalidConfig, c.VisionProvider)
+		return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+			ctx, pkgTranslator,
+			"visionengine_config_invalid_vision_provider",
+			fallbackConfigInvalidVisionProvider,
+			c.VisionProvider,
+		))
 	}
 	if c.SSIMThreshold < 0 || c.SSIMThreshold > 1 {
-		return fmt.Errorf("%w: SSIM threshold must be between 0 and 1, got %f", ErrInvalidConfig, c.SSIMThreshold)
+		return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+			ctx, pkgTranslator,
+			"visionengine_config_invalid_ssim_threshold",
+			fallbackConfigInvalidSSIMThreshold,
+			c.SSIMThreshold,
+		))
 	}
 	if c.MaxImageSize <= 0 {
-		return fmt.Errorf("%w: max image size must be positive, got %d", ErrInvalidConfig, c.MaxImageSize)
+		return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+			ctx, pkgTranslator,
+			"visionengine_config_invalid_max_image_size",
+			fallbackConfigInvalidMaxImageSize,
+			c.MaxImageSize,
+		))
 	}
 	if c.TimeoutSecs <= 0 {
-		return fmt.Errorf("%w: timeout must be positive, got %d", ErrInvalidConfig, c.TimeoutSecs)
+		return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+			ctx, pkgTranslator,
+			"visionengine_config_invalid_timeout",
+			fallbackConfigInvalidTimeout,
+			c.TimeoutSecs,
+		))
 	}
 
 	// If a specific provider is selected, check API key
 	switch c.VisionProvider {
 	case "openai":
 		if c.OpenAIAPIKey == "" {
-			return fmt.Errorf("%w: OPENAI_API_KEY required for openai provider", ErrInvalidConfig)
+			return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+				ctx, pkgTranslator,
+				"visionengine_config_openai_key_required",
+				fallbackConfigOpenAIKeyRequired,
+			))
 		}
 	case "anthropic":
 		if c.AnthropicAPIKey == "" {
-			return fmt.Errorf("%w: ANTHROPIC_API_KEY required for anthropic provider", ErrInvalidConfig)
+			return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+				ctx, pkgTranslator,
+				"visionengine_config_anthropic_key_required",
+				fallbackConfigAnthropicKeyRequired,
+			))
 		}
 	case "gemini":
 		if c.GoogleAPIKey == "" {
-			return fmt.Errorf("%w: GOOGLE_API_KEY required for gemini provider", ErrInvalidConfig)
+			return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+				ctx, pkgTranslator,
+				"visionengine_config_gemini_key_required",
+				fallbackConfigGeminiKeyRequired,
+			))
 		}
 	case "qwen":
 		if c.QwenAPIKey == "" {
-			return fmt.Errorf("%w: QWEN_API_KEY required for qwen provider", ErrInvalidConfig)
+			return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+				ctx, pkgTranslator,
+				"visionengine_config_qwen_key_required",
+				fallbackConfigQwenKeyRequired,
+			))
 		}
 	case "kimi":
 		if c.KimiAPIKey == "" {
-			return fmt.Errorf("%w: KIMI_API_KEY or MOONSHOT_API_KEY required for kimi provider", ErrInvalidConfig)
+			return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+				ctx, pkgTranslator,
+				"visionengine_config_kimi_key_required",
+				fallbackConfigKimiKeyRequired,
+			))
 		}
 	case "stepgui":
 		if c.StepfunAPIKey == "" {
-			return fmt.Errorf("%w: STEPFUN_API_KEY required for stepgui provider", ErrInvalidConfig)
+			return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+				ctx, pkgTranslator,
+				"visionengine_config_stepgui_key_required",
+				fallbackConfigStepGUIKeyRequired,
+			))
 		}
 	case "astica":
 		if c.AsticaAPIKey == "" {
