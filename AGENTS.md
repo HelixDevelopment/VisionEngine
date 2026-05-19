@@ -1876,3 +1876,67 @@ hatch — no `--skip-md-exports`, `--no-pdf-only`,
 [`Constitution.md`](constitution/Constitution.md) §11.4.65.
 
 Non-compliance is a release blocker regardless of context.
+
+
+**§11.4.66 — Blocker-resolution interactive-clarification mandate (User mandate, 2026-05-19)**
+
+When any task is blocked (operator decision, hardware access,
+external authorization, ambiguous scope), the agent MUST: (1)
+research what's doable from the agent side without operator input;
+(2) calculate minimum-viable operator input; (3) construct 2–4
+mutually-exclusive options with one marked "Recommended" and each
+stating what the agent does after that answer; (4) present via the
+platform's interactive question mechanism (`AskUserQuestion` on
+Claude Code) — NEVER free-text "what would you like?" for closed-
+set decisions; (5) after the answer, resume work without follow-up
+round-trips. Composes with §11.4.6 / §11.4.7 / §11.4.40 / §11.4.41
+/ §11.4.42 / §11.4.52. No silent waiting; no bulk-text questions
+when interactive options would do.
+
+Pre-build gate `CM-COVENANT-114-66-PROPAGATION` enforces the
+anchor literal across the 42-file consumer fleet. Paired meta-
+test mutation strips the literal → gate FAILs. No escape hatch —
+no `--skip-ask`, `--silent-wait`, `--free-form-only` flag.
+
+**Canonical authority:** constitution submodule
+[`Constitution.md`](constitution/Constitution.md) §11.4.66.
+
+Non-compliance is a release blocker regardless of context.
+
+**§11.4.67 — Shell-script target-shell-parseability mandate (User mandate, 2026-05-19)**
+
+**Forensic anchor — direct user mandate (verbatim, 2026-05-19):** "any
+issue we spot must be fixed, bash scripts as well if they are broken!"
++ "Make sure that this is mandatory rule!"
+
+Every shell script that may be invoked under a target shell other than
+the one in its shebang MUST parse cleanly under that target shell.
+Forensic incident: `device/rockchip/rk3588/tests/test_all_fixes.sh:114`
+used bash-only `exec > >(tee -a "$f") 2>&1` on a `sh script.sh` callsite
+— Android mksh parses the whole script BEFORE executing, so the runtime
+`[ -n "${BASH_VERSION:-}" ]` guard could not save it. Fixed by wrapping
+in `eval 'exec > >(tee …) 2>&1'` so the parser sees only a string.
+
+Closed-set scope: every tracked `.sh` under `device/rockchip/rk3588/tests/`,
+`scripts/`, `scripts/testing/` (and equivalent paths in owned submodules).
+OUT of scope: `external/`, `prebuilts/`, `packages/modules/`, `kernel-5.10/`,
+`out/`, `build/`, `scripts/legacy/`. Mandatory invariants: (1) every
+in-scope script parses under `sh -n`; (2) bash-only constructs
+(`>(...)`, `<(...)`, `[[ ]]`, `<<<`, arrays, `${var^^}`, etc.) MUST be
+wrapped in `eval` OR guarded by bash-only loading; (3) shebangs honest
+— `#!/bin/bash` only if bash actually expected; (4) fix at source per
+§11.4.1, never at callsites. Composes with §11.4.1 / §11.4.4 / §11.4.6
+/ §11.4.50 / §11.4.51.
+
+Pre-build gate `CM-SCRIPT-TARGET-SHELL-PARSEABLE` runs `sh -n` on every
+in-scope script. Propagation gate `CM-COVENANT-114-67-PROPAGATION`
+enforces the anchor literal across the 44-file consumer fleet. Paired
+mutations: inject bash-only outside `eval` → parse gate FAILs; strip
+`11.4.67` literal → propagation gate FAILs. No escape hatch — no
+`--skip-parseability-check`, `--bash-only-script`, `--runtime-guard-suffices`
+flag.
+
+**Canonical authority:** constitution submodule
+[`Constitution.md`](constitution/Constitution.md) §11.4.67.
+
+Non-compliance is a release blocker regardless of context.
