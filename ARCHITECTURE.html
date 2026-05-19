@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>ARCHITECTURE</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">ARCHITECTURE</h1>
+</header>
+<h1 id="visionengine-architecture">VisionEngine Architecture</h1>
+<h2 id="module-structure">Module Structure</h2>
+<pre><code>VisionEngine/
+├── pkg/
+│   ├── analyzer/    # Core interfaces and types
+│   ├── graph/       # NavigationGraph (imported by HelixQA)
+│   ├── llmvision/   # LLM Vision API adapters (Gemini, Anthropic, OpenAI, Qwen, Ollama)
+│   ├── remote/      # Remote Ollama deployment via SSH (auto-install, model pull, lifecycle)
+│   ├── opencv/      # OpenCV stubs (real impl behind build tag)
+│   └── config/      # Configuration
+├── go.mod
+├── Makefile
+└── Upstreams/       # Remote sync scripts</code></pre>
+<h2 id="vision-providers">Vision Providers</h2>
+<p>VisionEngine supports 7 cloud/local vision providers plus a fallback
+chain:</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>File</th>
+<th>API</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenAI</td>
+<td><code>openai.go</code></td>
+<td>GPT-4o vision</td>
+<td>Cloud, rate-limited</td>
+</tr>
+<tr>
+<td>Anthropic</td>
+<td><code>anthropic.go</code></td>
+<td>Claude vision</td>
+<td>Cloud, rate-limited</td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td><code>gemini.go</code></td>
+<td>Gemini 2.0 Flash</td>
+<td>Cloud, primary for HelixQA autonomous</td>
+</tr>
+<tr>
+<td>Qwen</td>
+<td><code>qwen.go</code></td>
+<td>Qwen VL Max</td>
+<td>Cloud</td>
+</tr>
+<tr>
+<td>Kimi</td>
+<td><code>kimi.go</code></td>
+<td>Kimi/Moonshot</td>
+<td>Cloud</td>
+</tr>
+<tr>
+<td>StepFun</td>
+<td><code>stepgui.go</code></td>
+<td>Step-1.5v</td>
+<td>Cloud</td>
+</tr>
+<tr>
+<td>Ollama</td>
+<td><code>ollama.go</code></td>
+<td>Any local model</td>
+<td>Local, free, no rate limits</td>
+</tr>
+<tr>
+<td>Fallback</td>
+<td><code>fallback.go</code></td>
+<td>Multi-provider chain</td>
+<td>Tries providers in order until one succeeds</td>
+</tr>
+</tbody>
+</table>
+<p>Provider selection is configured via
+<code>HELIX_VISION_PROVIDER</code>:</p>
+<ul>
+<li><code>auto</code> — Probes all configured providers, uses
+FallbackProvider</li>
+<li><code>openai</code>, <code>anthropic</code>, <code>gemini</code>,
+etc. — Use a specific provider</li>
+<li><code>ollama</code> — Use local Ollama instance</li>
+</ul>
+<h3 id="local-model-support-ollama">Local Model Support (Ollama)</h3>
+<p>The Ollama provider (<code>pkg/llmvision/ollama.go</code>) connects
+to any Ollama instance:</p>
+<ul>
+<li>Configured via <code>HELIX_OLLAMA_URL</code> (e.g.,
+<code>http://thinker.local:11434</code>)</li>
+<li>Supports any vision model (e.g., <code>minicpm-v:8b</code>,
+<code>llava:7b</code>)</li>
+<li>Zero cost, no rate limits, full privacy</li>
+<li>Auto-deployment via <code>pkg/remote/</code> ensures Ollama + model
+are running on remote hosts</li>
+</ul>
+<h3 id="distributed-vision-llamacpp-rpc">Distributed Vision (llama.cpp
+RPC)</h3>
+<p>The <code>pkg/remote/</code> package manages distributed
+inference:</p>
+<ul>
+<li><code>hardware.go</code> — Detects GPU (NVIDIA), CPU, and RAM on
+remote hosts via SSH</li>
+<li><code>llamacpp.go</code> — Manages llama.cpp RPC workers across
+multiple hosts</li>
+<li>Each worker contributes its VRAM/RAM to the inference pool</li>
+<li>Configured via <code>HELIX_LLAMACPP_RPC_WORKERS</code> and
+<code>HELIX_LLAMACPP_RPC_MODEL</code></li>
+</ul>
+<h2 id="two-layer-analysis-pipeline">Two-Layer Analysis Pipeline</h2>
+<pre class="mermaid"><code>graph TD
+    A[Screenshot] --&gt; B[Layer 1: GoCV - Mechanical]
+    A --&gt; C[Layer 2: LLM Vision - Intelligent]
+    B --&gt; D[Element Detection]
+    B --&gt; E[SSIM Comparison]
+    B --&gt; F[Color Analysis]
+    C --&gt; G[Screen Identification]
+    C --&gt; H[UI Comprehension]
+    C --&gt; I[Issue Detection]
+    D --&gt; J[Combined Analysis]
+    G --&gt; J</code></pre>
+<h2 id="navigationgraph">NavigationGraph</h2>
+<pre class="mermaid"><code>classDiagram
+    class NavigationGraph {
+        &lt;&lt;interface&gt;&gt;
+        +AddScreen(ScreenIdentity) string
+        +AddTransition(from, to, Action)
+        +CurrentScreen() string
+        +SetCurrent(screenID)
+        +PathTo(targetID) []Transition
+        +UnvisitedScreens() []string
+        +Coverage() float64
+        +Export() GraphSnapshot
+    }
+    class navGraph {
+        -screens map[string]*ScreenNode
+        -transitions []Transition
+        -adjacency map[string][]Transition
+        -current string
+        -mu sync.RWMutex
+    }
+    NavigationGraph &lt;|.. navGraph</code></pre>
+<h2 id="thread-safety">Thread Safety</h2>
+<ul>
+<li>NavigationGraph uses <code>sync.RWMutex</code> for all
+operations</li>
+<li>FallbackProvider uses <code>sync.RWMutex</code> for provider list
+access</li>
+<li>All concurrent operations are race-detector safe</li>
+</ul>
+<h2 id="build-tags">Build Tags</h2>
+<ul>
+<li>Default build: No OpenCV, stubs return errors, LLM providers
+work</li>
+<li><code>vision</code> tag: Full OpenCV support via GoCV</li>
+</ul>
+</body>
+</html>
