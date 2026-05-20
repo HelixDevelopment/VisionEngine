@@ -27,6 +27,7 @@ const (
 	fallbackConfigQwenKeyRequired       = "QWEN_API_KEY required for qwen provider"
 	fallbackConfigKimiKeyRequired       = "KIMI_API_KEY or MOONSHOT_API_KEY required for kimi provider"
 	fallbackConfigStepGUIKeyRequired    = "STEPFUN_API_KEY required for stepgui provider"
+	fallbackConfigAsticaKeyRequired     = "ASTICA_API_KEY required for astica provider"
 )
 
 // resolveOrFallback routes a user-facing string through tr.T. When the

@@ -5,6 +5,7 @@ package analyzer
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,15 +24,18 @@ func TestNewStubAnalyzerWithProvider(t *testing.T) {
 	assert.Nil(t, a.Provider)
 }
 
+// TestStubAnalyzer_AnalyzeScreen — round-27 §11.4 audit (2026-05-17):
+// AnalyzeScreen now returns ErrStubAnalyzerNotImplemented for valid
+// non-empty input. The previous "successful no-op with Unknown
+// Screen title" was a PASS-bluff and has been removed.
 func TestStubAnalyzer_AnalyzeScreen(t *testing.T) {
 	a := NewStubAnalyzer()
 	ctx := context.Background()
 
-	result, err := a.AnalyzeScreen(ctx, []byte("fake screenshot data"))
-	require.NoError(t, err)
-	assert.NotEmpty(t, result.ScreenID)
-	assert.Equal(t, "Unknown Screen", result.Title)
-	assert.NotZero(t, result.Timestamp)
+	_, err := a.AnalyzeScreen(ctx, []byte("fake screenshot data"))
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStubAnalyzerNotImplemented),
+		"expected errors.Is(err, ErrStubAnalyzerNotImplemented), got: %v", err)
 }
 
 func TestStubAnalyzer_AnalyzeScreen_Empty(t *testing.T) {
@@ -49,8 +53,15 @@ func TestStubAnalyzer_AnalyzeScreen_Cancelled(t *testing.T) {
 
 	_, err := a.AnalyzeScreen(ctx, []byte("data"))
 	assert.Error(t, err)
+	// Either ctx.Err() (preferred — cancel-before-method-body) or
+	// the sentinel is acceptable; assert NOT-nil and either of them.
+	if !errors.Is(err, context.Canceled) && !errors.Is(err, ErrStubAnalyzerNotImplemented) {
+		t.Fatalf("expected context.Canceled or ErrStubAnalyzerNotImplemented, got: %v", err)
+	}
 }
 
+// TestStubAnalyzer_CompareScreens — round-27 §11.4 audit: byte-equality
+// "comparison" replaced with sentinel.
 func TestStubAnalyzer_CompareScreens(t *testing.T) {
 	a := NewStubAnalyzer()
 	ctx := context.Background()
@@ -58,22 +69,26 @@ func TestStubAnalyzer_CompareScreens(t *testing.T) {
 	img1 := []byte("image one")
 	img2 := []byte("image two")
 
-	diff, err := a.CompareScreens(ctx, img1, img2)
-	require.NoError(t, err)
-	assert.Equal(t, 0.0, diff.Similarity)
-	assert.True(t, diff.IsNewScreen)
+	_, err := a.CompareScreens(ctx, img1, img2)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStubAnalyzerNotImplemented),
+		"expected errors.Is(err, ErrStubAnalyzerNotImplemented), got: %v", err)
 }
 
+// TestStubAnalyzer_CompareScreens_Identical — even when bytes match
+// (the case the old bluff handled with Similarity: 1.0), the honest
+// stub still returns the sentinel: it cannot prove the screens are
+// visually identical from byte equality.
 func TestStubAnalyzer_CompareScreens_Identical(t *testing.T) {
 	a := NewStubAnalyzer()
 	ctx := context.Background()
 
 	img := []byte("same image data")
 
-	diff, err := a.CompareScreens(ctx, img, img)
-	require.NoError(t, err)
-	assert.Equal(t, 1.0, diff.Similarity)
-	assert.False(t, diff.IsNewScreen)
+	_, err := a.CompareScreens(ctx, img, img)
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStubAnalyzerNotImplemented),
+		"expected errors.Is(err, ErrStubAnalyzerNotImplemented), got: %v", err)
 }
 
 func TestStubAnalyzer_CompareScreens_EmptyBefore(t *testing.T) {
@@ -101,12 +116,15 @@ func TestStubAnalyzer_CompareScreens_Cancelled(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestStubAnalyzer_DetectElements — round-27 §11.4 audit: empty-slice
+// success replaced with sentinel.
 func TestStubAnalyzer_DetectElements(t *testing.T) {
 	a := NewStubAnalyzer()
 
-	elements, err := a.DetectElements([]byte("screenshot"))
-	require.NoError(t, err)
-	assert.Empty(t, elements)
+	_, err := a.DetectElements([]byte("screenshot"))
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStubAnalyzerNotImplemented),
+		"expected errors.Is(err, ErrStubAnalyzerNotImplemented), got: %v", err)
 }
 
 func TestStubAnalyzer_DetectElements_Empty(t *testing.T) {
@@ -116,12 +134,14 @@ func TestStubAnalyzer_DetectElements_Empty(t *testing.T) {
 	assert.ErrorIs(t, err, ErrEmptyScreenshot)
 }
 
+// TestStubAnalyzer_DetectText — round-27 §11.4 audit.
 func TestStubAnalyzer_DetectText(t *testing.T) {
 	a := NewStubAnalyzer()
 
-	regions, err := a.DetectText([]byte("screenshot"))
-	require.NoError(t, err)
-	assert.Empty(t, regions)
+	_, err := a.DetectText([]byte("screenshot"))
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStubAnalyzerNotImplemented),
+		"expected errors.Is(err, ErrStubAnalyzerNotImplemented), got: %v", err)
 }
 
 func TestStubAnalyzer_DetectText_Empty(t *testing.T) {
@@ -131,16 +151,16 @@ func TestStubAnalyzer_DetectText_Empty(t *testing.T) {
 	assert.ErrorIs(t, err, ErrEmptyScreenshot)
 }
 
+// TestStubAnalyzer_IdentifyScreen — round-27 §11.4 audit: SHA-256
+// hash leak as "screen identity" replaced with sentinel.
 func TestStubAnalyzer_IdentifyScreen(t *testing.T) {
 	a := NewStubAnalyzer()
 	ctx := context.Background()
 
-	identity, err := a.IdentifyScreen(ctx, []byte("screenshot"))
-	require.NoError(t, err)
-	assert.Contains(t, identity.ID, "screen-")
-	assert.Equal(t, "Unknown", identity.Name)
-	assert.Equal(t, "unknown", identity.Category)
-	assert.NotEmpty(t, identity.Fingerprint)
+	_, err := a.IdentifyScreen(ctx, []byte("screenshot"))
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStubAnalyzerNotImplemented),
+		"expected errors.Is(err, ErrStubAnalyzerNotImplemented), got: %v", err)
 }
 
 func TestStubAnalyzer_IdentifyScreen_Empty(t *testing.T) {
@@ -160,25 +180,15 @@ func TestStubAnalyzer_IdentifyScreen_Cancelled(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestStubAnalyzer_IdentifyScreen_Deterministic(t *testing.T) {
-	a := NewStubAnalyzer()
-	ctx := context.Background()
-	data := []byte("same screenshot data")
-
-	id1, err := a.IdentifyScreen(ctx, data)
-	require.NoError(t, err)
-	id2, err := a.IdentifyScreen(ctx, data)
-	require.NoError(t, err)
-	assert.Equal(t, id1.Fingerprint, id2.Fingerprint, "Same data should produce same fingerprint")
-}
-
+// TestStubAnalyzer_DetectIssues — round-27 §11.4 audit.
 func TestStubAnalyzer_DetectIssues(t *testing.T) {
 	a := NewStubAnalyzer()
 	ctx := context.Background()
 
-	issues, err := a.DetectIssues(ctx, []byte("screenshot"))
-	require.NoError(t, err)
-	assert.Empty(t, issues)
+	_, err := a.DetectIssues(ctx, []byte("screenshot"))
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrStubAnalyzerNotImplemented),
+		"expected errors.Is(err, ErrStubAnalyzerNotImplemented), got: %v", err)
 }
 
 func TestStubAnalyzer_DetectIssues_Empty(t *testing.T) {
@@ -202,6 +212,9 @@ func TestStubAnalyzer_ImplementsInterface(t *testing.T) {
 	var _ Analyzer = (*StubAnalyzer)(nil)
 }
 
+// TestFingerprint_Deterministic — fingerprint() remains an internal
+// helper; tests retained to confirm SHA-256 determinism (used by the
+// real OpenCV implementation downstream).
 func TestFingerprint_Deterministic(t *testing.T) {
 	data := []byte("test data for fingerprinting")
 	fp1 := fingerprint(data)

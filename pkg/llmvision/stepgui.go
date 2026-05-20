@@ -31,7 +31,7 @@ type StepGUIProvider struct {
 // NewStepGUIProvider creates a new Step-GUI vision provider.
 func NewStepGUIProvider(config ProviderConfig) (*StepGUIProvider, error) {
 	if config.APIKey == "" {
-		return nil, ErrNoAPIKey
+		return nil, LocalizedError(context.Background(), ErrNoAPIKey)
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = stepGUIDefaultBaseURL
@@ -172,7 +172,7 @@ func (p *StepGUIProvider) sendRequest(ctx context.Context, body map[string]any) 
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return "", ErrRateLimited
+		return "", LocalizedError(ctx, ErrRateLimited)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w: status %d: %s", ErrProviderUnavailable, resp.StatusCode, string(respBody))

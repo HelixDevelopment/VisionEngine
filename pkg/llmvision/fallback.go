@@ -87,7 +87,13 @@ func (f *FallbackProvider) AnalyzeImage(ctx context.Context, image []byte, promp
 		}
 		lastErr = err
 	}
-	return "", fmt.Errorf("all providers failed, last error: %w", lastErr)
+	// CONST-046: user-facing aggregate-failure message routed through
+	// the package-level translator; %w preserves errors.Is chains.
+	return "", fmt.Errorf("%s: %w", resolvePlain(
+		ctx, pkgTranslator,
+		"visionengine_provider_fallback_all_failed_prefix",
+		fallbackProviderFallbackAllFailedPrefix,
+	), lastErr)
 }
 
 // CompareImages tries each provider in order until one succeeds.
@@ -110,7 +116,13 @@ func (f *FallbackProvider) CompareImages(ctx context.Context, img1, img2 []byte,
 		}
 		lastErr = err
 	}
-	return "", fmt.Errorf("all providers failed, last error: %w", lastErr)
+	// CONST-046: user-facing aggregate-failure message routed through
+	// the package-level translator; %w preserves errors.Is chains.
+	return "", fmt.Errorf("%s: %w", resolvePlain(
+		ctx, pkgTranslator,
+		"visionengine_provider_fallback_all_failed_prefix",
+		fallbackProviderFallbackAllFailedPrefix,
+	), lastErr)
 }
 
 // Providers returns a copy of the provider list.

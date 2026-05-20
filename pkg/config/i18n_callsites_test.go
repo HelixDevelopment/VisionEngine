@@ -127,6 +127,7 @@ func TestValidate_MissingAPIKeys_RouteThroughTranslator(t *testing.T) {
 		{"qwen", "qwen", "<TRANSLATED:visionengine_config_qwen_key_required>"},
 		{"kimi", "kimi", "<TRANSLATED:visionengine_config_kimi_key_required>"},
 		{"stepgui", "stepgui", "<TRANSLATED:visionengine_config_stepgui_key_required>"},
+		{"astica", "astica", "<TRANSLATED:visionengine_config_astica_key_required>"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -180,6 +181,51 @@ func TestValidate_NoTranslator_UsesEnglishFallback(t *testing.T) {
 			t.Fatalf("standalone fallback err=%q; expected English literal", err.Error())
 		}
 	})
+
+	// round-414 §11.4 CONST-046 Phase 4: the astica branch — previously
+	// the lone hardcoded literal in Validate — now routes through the
+	// resolveOrFallback seam. Standalone path falls back to the bundled
+	// English literal.
+	t.Run("missing_astica_key_literal", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.VisionProvider = "astica"
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatalf("Validate() returned nil; expected ErrInvalidConfig")
+		}
+		if !strings.Contains(err.Error(), "ASTICA_API_KEY required for astica provider") {
+			t.Fatalf("standalone fallback err=%q; expected English literal", err.Error())
+		}
+	})
+}
+
+// TestValidate_AsticaKey_RoutesThroughTranslator is the round-414
+// paired-mutation guard for the astica migration. Anti-bluff: if a
+// regression re-inlines the literal `ASTICA_API_KEY required for astica
+// provider`, the "<TRANSLATED:" sentinel will be absent and this test
+// FAILs — proving the call site genuinely routes through pkgTranslator.
+func TestValidate_AsticaKey_RoutesThroughTranslator(t *testing.T) {
+	tr := withFakeTranslator(t)
+	cfg := DefaultConfig()
+	cfg.VisionProvider = "astica"
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatalf("Validate() for astica with empty key returned nil; expected ErrInvalidConfig")
+	}
+	want := "<TRANSLATED:visionengine_config_astica_key_required>"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("Validate error=%q; expected sentinel %q (astica call site bypassed Translator → CONST-046 violation)", err.Error(), want)
+	}
+	found := false
+	for _, id := range tr.seen {
+		if id == "visionengine_config_astica_key_required" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("translator not invoked with astica msgID; seen=%v", tr.seen)
+	}
 }
 
 // TestSetPkgTranslator_NilResetsToDefault asserts the SetPkgTranslator

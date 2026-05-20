@@ -9,6 +9,11 @@ import (
 	"errors"
 )
 
+// VisionProvider sentinel errors. Per CONST-046 the literal text on
+// each sentinel is only the bundled English fallback (NoopTranslator
+// path); user-facing surfacing routes through LocalizedError (see
+// i18n_defaults.go), which preserves errors.Is matchability while
+// emitting a locale-appropriate message when a translator is wired.
 var (
 	// ErrNoAPIKey is returned when no API key is configured.
 	ErrNoAPIKey = errors.New("API key not configured")
@@ -55,20 +60,26 @@ type ProviderConfig struct {
 const DefaultMaxImageSize = 20 * 1024 * 1024
 
 // validateImage checks that the image data is valid for the provider.
+// Per CONST-046 the returned error is routed through LocalizedError so
+// the user-visible message is locale-appropriate; errors.Is against
+// ErrEmptyImage / ErrImageTooLarge still holds (localizedSentinelError
+// unwraps to the sentinel).
 func validateImage(image []byte, maxSize int) error {
 	if len(image) == 0 {
-		return ErrEmptyImage
+		return LocalizedError(context.Background(), ErrEmptyImage)
 	}
 	if maxSize > 0 && len(image) > maxSize {
-		return ErrImageTooLarge
+		return LocalizedError(context.Background(), ErrImageTooLarge)
 	}
 	return nil
 }
 
-// validatePrompt checks that the prompt is non-empty.
+// validatePrompt checks that the prompt is non-empty. The returned
+// error routes through LocalizedError per CONST-046; errors.Is against
+// ErrEmptyPrompt still holds.
 func validatePrompt(prompt string) error {
 	if prompt == "" {
-		return ErrEmptyPrompt
+		return LocalizedError(context.Background(), ErrEmptyPrompt)
 	}
 	return nil
 }

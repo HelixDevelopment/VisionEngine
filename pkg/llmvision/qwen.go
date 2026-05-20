@@ -29,7 +29,7 @@ type QwenProvider struct {
 // NewQwenProvider creates a new Qwen-VL vision provider.
 func NewQwenProvider(config ProviderConfig) (*QwenProvider, error) {
 	if config.APIKey == "" {
-		return nil, ErrNoAPIKey
+		return nil, LocalizedError(context.Background(), ErrNoAPIKey)
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = qwenDefaultBaseURL
@@ -171,7 +171,7 @@ func (p *QwenProvider) sendRequest(ctx context.Context, body map[string]any) (st
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return "", ErrRateLimited
+		return "", LocalizedError(ctx, ErrRateLimited)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w: status %d: %s", ErrProviderUnavailable, resp.StatusCode, string(respBody))

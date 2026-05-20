@@ -33,7 +33,7 @@ type AsticaProvider struct {
 // NewAsticaProvider creates a new Astica vision provider.
 func NewAsticaProvider(config ProviderConfig) (*AsticaProvider, error) {
 	if config.APIKey == "" {
-		return nil, ErrNoAPIKey
+		return nil, LocalizedError(context.Background(), ErrNoAPIKey)
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = asticaDefaultEndpoint
@@ -159,7 +159,7 @@ func (p *AsticaProvider) sendRequest(ctx context.Context, body map[string]any) (
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return "", ErrRateLimited
+		return "", LocalizedError(ctx, ErrRateLimited)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w: status %d: %s", ErrProviderUnavailable, resp.StatusCode, string(respBody))
