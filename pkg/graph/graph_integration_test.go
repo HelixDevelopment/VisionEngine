@@ -4,7 +4,6 @@
 package graph
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -14,9 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Round-27 §11.4 audit (2026-05-17): the previous integration tests
+// here exercised StubAnalyzer.IdentifyScreen + CompareScreens to
+// produce graph nodes / transitions. Those stub methods now return
+// ErrStubAnalyzerNotImplemented; the deterministic-fingerprint
+// behaviour the tests asserted has been moved into testIdentifyScreen
+// (in graph_test.go) — CONST-050(A) permits stubs in *_test.go only.
+
 func TestIntegration_AnalyzerToGraphPipeline(t *testing.T) {
 	// Simulate the full pipeline: analyzer identifies screens -> graph tracks navigation
-	a := analyzer.NewStubAnalyzer()
 	g := NewNavigationGraph()
 
 	// Simulate navigating through 5 screens
@@ -30,8 +35,7 @@ func TestIntegration_AnalyzerToGraphPipeline(t *testing.T) {
 
 	var prevID string
 	for i, img := range screenshots {
-		identity, err := a.IdentifyScreen(context.Background(), img)
-		require.NoError(t, err)
+		identity := testIdentifyScreen(img)
 
 		screenID := g.AddScreen(identity)
 		g.SetCurrent(screenID)
@@ -76,28 +80,40 @@ func TestIntegration_GraphExportRoundTrip(t *testing.T) {
 	assert.Equal(t, 0.5, snapshot.Coverage)
 }
 
+// testIsNewScreen is a test-local byte-equality "is new screen?"
+// helper that mirrors the previous StubAnalyzer.CompareScreens bluff
+// behaviour (IsNewScreen = !bytes.Equal). CONST-050(A) permits this
+// stub-style helper in *_test.go only.
+func testIsNewScreen(before, after []byte) bool {
+	if len(before) != len(after) {
+		return true
+	}
+	for i := range before {
+		if before[i] != after[i] {
+			return true
+		}
+	}
+	return false
+}
+
 func TestIntegration_ScreenComparisonToGraphUpdate(t *testing.T) {
-	// Simulate: compare screens -> determine if new screen -> update graph
-	a := analyzer.NewStubAnalyzer()
+	// Round-27 §11.4 audit (2026-05-17): IdentifyScreen + CompareScreens
+	// now return ErrStubAnalyzerNotImplemented in production; this test
+	// uses testIdentifyScreen + testIsNewScreen for the byte-equality
+	// behaviour the original test asserted.
 	g := NewNavigationGraph()
 
 	before := []byte("before-screenshot")
 	after := []byte("after-screenshot")
 
 	// Identify and add "before" screen
-	beforeID, err := a.IdentifyScreen(context.Background(), before)
-	require.NoError(t, err)
+	beforeID := testIdentifyScreen(before)
 	g.AddScreen(beforeID)
 	g.SetCurrent(beforeID.ID)
 
-	// Compare screens
-	diff, err := a.CompareScreens(context.Background(), before, after)
-	require.NoError(t, err)
-
-	if diff.IsNewScreen {
-		// Identify "after" screen
-		afterID, err := a.IdentifyScreen(context.Background(), after)
-		require.NoError(t, err)
+	// Compare screens via test-local helper (byte equality)
+	if testIsNewScreen(before, after) {
+		afterID := testIdentifyScreen(after)
 		newScreenID := g.AddScreen(afterID)
 		g.AddTransition(beforeID.ID, newScreenID, analyzer.Action{
 			Type:       "click",
