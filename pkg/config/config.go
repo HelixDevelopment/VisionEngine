@@ -141,9 +141,8 @@ func LoadFromEnv() Config {
 // translator (see i18n_defaults.go) so consuming projects can localize
 // without forking the submodule. Standalone (NoopTranslator default)
 // path falls back to the bundled English literal via resolveOrFallback.
-// The astica branch still uses the legacy hardcoded literal — it is a
-// candidate for a subsequent migration round (out of scope for the
-// per-round 10-string ceiling).
+// Every provider branch — including astica — routes through the seam
+// (round-414 §11.4 CONST-046 Phase 4 closed the astica residual).
 func (c Config) Validate() error {
 	ctx := context.Background()
 	validProviders := map[string]bool{
@@ -235,7 +234,11 @@ func (c Config) Validate() error {
 		}
 	case "astica":
 		if c.AsticaAPIKey == "" {
-			return fmt.Errorf("%w: ASTICA_API_KEY required for astica provider", ErrInvalidConfig)
+			return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
+				ctx, pkgTranslator,
+				"visionengine_config_astica_key_required",
+				fallbackConfigAsticaKeyRequired,
+			))
 		}
 	}
 

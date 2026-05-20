@@ -83,7 +83,7 @@ func NewStubAnalyzerWithProvider(provider LLMVisionProvider) *StubAnalyzer {
 // ErrStubAnalyzerNotImplemented documentation.
 func (s *StubAnalyzer) AnalyzeScreen(ctx context.Context, screenshot []byte) (ScreenAnalysis, error) {
 	if len(screenshot) == 0 {
-		return ScreenAnalysis{}, ErrEmptyScreenshot
+		return ScreenAnalysis{}, errEmptyScreenshot()
 	}
 	select {
 	case <-ctx.Done():
@@ -101,7 +101,7 @@ func (s *StubAnalyzer) AnalyzeScreen(ctx context.Context, screenshot []byte) (Sc
 // equality is not screen comparison.
 func (s *StubAnalyzer) CompareScreens(ctx context.Context, before, after []byte) (ScreenDiff, error) {
 	if len(before) == 0 || len(after) == 0 {
-		return ScreenDiff{}, ErrEmptyScreenshot
+		return ScreenDiff{}, errEmptyScreenshot()
 	}
 	select {
 	case <-ctx.Done():
@@ -118,7 +118,7 @@ func (s *StubAnalyzer) CompareScreens(ctx context.Context, before, after []byte)
 // error pretending detection had succeeded with zero results.
 func (s *StubAnalyzer) DetectElements(screenshot []byte) ([]UIElement, error) {
 	if len(screenshot) == 0 {
-		return nil, ErrEmptyScreenshot
+		return nil, errEmptyScreenshot()
 	}
 	return nil, ErrStubAnalyzerNotImplemented
 }
@@ -129,7 +129,7 @@ func (s *StubAnalyzer) DetectElements(screenshot []byte) ([]UIElement, error) {
 // revisions returned `[]TextRegion{}, nil`. See ErrStub doc.
 func (s *StubAnalyzer) DetectText(screenshot []byte) ([]TextRegion, error) {
 	if len(screenshot) == 0 {
-		return nil, ErrEmptyScreenshot
+		return nil, errEmptyScreenshot()
 	}
 	return nil, ErrStubAnalyzerNotImplemented
 }
@@ -143,7 +143,7 @@ func (s *StubAnalyzer) DetectText(screenshot []byte) ([]TextRegion, error) {
 // identification.
 func (s *StubAnalyzer) IdentifyScreen(ctx context.Context, screenshot []byte) (ScreenIdentity, error) {
 	if len(screenshot) == 0 {
-		return ScreenIdentity{}, ErrEmptyScreenshot
+		return ScreenIdentity{}, errEmptyScreenshot()
 	}
 	select {
 	case <-ctx.Done():
@@ -159,7 +159,7 @@ func (s *StubAnalyzer) IdentifyScreen(ctx context.Context, screenshot []byte) (S
 // revisions returned `[]VisualIssue{}, nil`. See ErrStub doc.
 func (s *StubAnalyzer) DetectIssues(ctx context.Context, screenshot []byte) ([]VisualIssue, error) {
 	if len(screenshot) == 0 {
-		return nil, ErrEmptyScreenshot
+		return nil, errEmptyScreenshot()
 	}
 	select {
 	case <-ctx.Done():

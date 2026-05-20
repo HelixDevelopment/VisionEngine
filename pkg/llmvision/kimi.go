@@ -30,7 +30,7 @@ type KimiProvider struct {
 // NewKimiProvider creates a new Kimi vision provider.
 func NewKimiProvider(config ProviderConfig) (*KimiProvider, error) {
 	if config.APIKey == "" {
-		return nil, ErrNoAPIKey
+		return nil, LocalizedError(context.Background(), ErrNoAPIKey)
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = kimiDefaultBaseURL
@@ -171,7 +171,7 @@ func (p *KimiProvider) sendRequest(ctx context.Context, body map[string]any) (st
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return "", ErrRateLimited
+		return "", LocalizedError(ctx, ErrRateLimited)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w: status %d: %s", ErrProviderUnavailable, resp.StatusCode, string(respBody))

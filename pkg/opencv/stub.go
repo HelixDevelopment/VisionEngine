@@ -13,6 +13,11 @@ import (
 	"digital.vasic.visionengine/pkg/analyzer"
 )
 
+// opencv stub sentinel errors. Per CONST-046 the literal text on each
+// sentinel is only the bundled English fallback (NoopTranslator path);
+// user-facing surfacing routes through the errOpenCV* helpers below,
+// which preserve errors.Is matchability while emitting a locale-
+// appropriate message when a translator is wired via SetPkgTranslator.
 var (
 	// ErrOpenCVNotAvailable is returned when OpenCV is not installed.
 	ErrOpenCVNotAvailable = errors.New("OpenCV not available: build with -tags vision")
@@ -21,6 +26,27 @@ var (
 	// ErrInvalidVideoPath is returned when a video path is invalid.
 	ErrInvalidVideoPath = errors.New("invalid video path")
 )
+
+// errOpenCVNotAvailable returns a translator-routed error that unwraps
+// to ErrOpenCVNotAvailable (CONST-046).
+func errOpenCVNotAvailable() error {
+	return localizedError(ErrOpenCVNotAvailable,
+		"visionengine_opencv_not_available", fallbackOpenCVNotAvailable)
+}
+
+// errInvalidImage returns a translator-routed error that unwraps to
+// ErrInvalidImage (CONST-046).
+func errInvalidImage() error {
+	return localizedError(ErrInvalidImage,
+		"visionengine_opencv_invalid_image", fallbackOpenCVInvalidImage)
+}
+
+// errInvalidVideoPath returns a translator-routed error that unwraps to
+// ErrInvalidVideoPath (CONST-046).
+func errInvalidVideoPath() error {
+	return localizedError(ErrInvalidVideoPath,
+		"visionengine_opencv_invalid_video_path", fallbackOpenCVInvalidVideoPath)
+}
 
 // StubDiffer provides stub image diffing without OpenCV.
 type StubDiffer struct{}
@@ -33,25 +59,25 @@ func NewStubDiffer() *StubDiffer {
 // SSIM returns an error indicating OpenCV is not available.
 func (d *StubDiffer) SSIM(img1, img2 []byte) (float64, error) {
 	if len(img1) == 0 || len(img2) == 0 {
-		return 0, ErrInvalidImage
+		return 0, errInvalidImage()
 	}
-	return 0, ErrOpenCVNotAvailable
+	return 0, errOpenCVNotAvailable()
 }
 
 // PixelDiff returns an error indicating OpenCV is not available.
 func (d *StubDiffer) PixelDiff(img1, img2 []byte) ([]byte, error) {
 	if len(img1) == 0 || len(img2) == 0 {
-		return nil, ErrInvalidImage
+		return nil, errInvalidImage()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // ChangeMask returns an error indicating OpenCV is not available.
 func (d *StubDiffer) ChangeMask(img1, img2 []byte) ([]analyzer.Rect, error) {
 	if len(img1) == 0 || len(img2) == 0 {
-		return nil, ErrInvalidImage
+		return nil, errInvalidImage()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // StubDetector provides stub element detection without OpenCV.
@@ -65,25 +91,25 @@ func NewStubDetector() *StubDetector {
 // DetectEdges returns an error indicating OpenCV is not available.
 func (d *StubDetector) DetectEdges(img []byte) ([]analyzer.Rect, error) {
 	if len(img) == 0 {
-		return nil, ErrInvalidImage
+		return nil, errInvalidImage()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // DetectContours returns an error indicating OpenCV is not available.
 func (d *StubDetector) DetectContours(img []byte) ([]analyzer.Rect, error) {
 	if len(img) == 0 {
-		return nil, ErrInvalidImage
+		return nil, errInvalidImage()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // TemplateMatch returns an error indicating OpenCV is not available.
 func (d *StubDetector) TemplateMatch(img, template []byte) ([]analyzer.Rect, error) {
 	if len(img) == 0 || len(template) == 0 {
-		return nil, ErrInvalidImage
+		return nil, errInvalidImage()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // StubColorAnalyzer provides stub color analysis without OpenCV.
@@ -97,17 +123,17 @@ func NewStubColorAnalyzer() *StubColorAnalyzer {
 // DominantColors returns an error indicating OpenCV is not available.
 func (c *StubColorAnalyzer) DominantColors(img []byte, count int) ([]Color, error) {
 	if len(img) == 0 {
-		return nil, ErrInvalidImage
+		return nil, errInvalidImage()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // ContrastRatio returns an error indicating OpenCV is not available.
 func (c *StubColorAnalyzer) ContrastRatio(img []byte, region analyzer.Rect) (float64, error) {
 	if len(img) == 0 {
-		return 0, ErrInvalidImage
+		return 0, errInvalidImage()
 	}
-	return 0, ErrOpenCVNotAvailable
+	return 0, errOpenCVNotAvailable()
 }
 
 // Color represents an RGB color.
@@ -128,31 +154,31 @@ func NewStubVideoProcessor() *StubVideoProcessor {
 // ExtractFrame returns an error indicating OpenCV is not available.
 func (v *StubVideoProcessor) ExtractFrame(videoPath string, timestamp time.Duration) ([]byte, error) {
 	if videoPath == "" {
-		return nil, ErrInvalidVideoPath
+		return nil, errInvalidVideoPath()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // ExtractKeyFrames returns an error indicating OpenCV is not available.
 func (v *StubVideoProcessor) ExtractKeyFrames(videoPath string) ([]analyzer.KeyFrame, error) {
 	if videoPath == "" {
-		return nil, ErrInvalidVideoPath
+		return nil, errInvalidVideoPath()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // DetectSceneChanges returns an error indicating OpenCV is not available.
 func (v *StubVideoProcessor) DetectSceneChanges(videoPath string) ([]time.Duration, error) {
 	if videoPath == "" {
-		return nil, ErrInvalidVideoPath
+		return nil, errInvalidVideoPath()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }
 
 // GenerateThumbnail returns an error indicating OpenCV is not available.
 func (v *StubVideoProcessor) GenerateThumbnail(videoPath string, ts time.Duration, size analyzer.Size) ([]byte, error) {
 	if videoPath == "" {
-		return nil, ErrInvalidVideoPath
+		return nil, errInvalidVideoPath()
 	}
-	return nil, ErrOpenCVNotAvailable
+	return nil, errOpenCVNotAvailable()
 }

@@ -30,7 +30,7 @@ type AnthropicProvider struct {
 // NewAnthropicProvider creates a new Anthropic vision provider.
 func NewAnthropicProvider(config ProviderConfig) (*AnthropicProvider, error) {
 	if config.APIKey == "" {
-		return nil, ErrNoAPIKey
+		return nil, LocalizedError(context.Background(), ErrNoAPIKey)
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = anthropicDefaultBaseURL
@@ -178,7 +178,7 @@ func (p *AnthropicProvider) sendRequest(ctx context.Context, body map[string]any
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return "", ErrRateLimited
+		return "", LocalizedError(ctx, ErrRateLimited)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%w: status %d: %s", ErrProviderUnavailable, resp.StatusCode, string(respBody))
