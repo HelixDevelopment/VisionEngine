@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>test-coverage</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">test-coverage</h1>
+</header>
+<h1 id="visionengine--test-coverage-ledger">VisionEngine — Test Coverage
+Ledger</h1>
+<p><strong>Round</strong>: 297 (deep-doc + Challenge enrichment, mirror
+round-220 template) <strong>Date</strong>: 2026-05-19
+<strong>Scope</strong>: every exported symbol in
+<code>pkg/{analyzer,graph,llmvision,opencv,config,i18n,remote}</code>
+mapped to the test (or Challenge) that exercises it with positive
+runtime evidence per Article XI §11.9.</p>
+<p>This ledger is the symbol→test &quot;honest map&quot; mandated by CONST-035 +
+CONST-050(B). An exported symbol present here without a &quot;test that
+proves real behaviour&quot; reference is a coverage gap; an entry whose
+listed test does not actually call the symbol is a bluff and MUST be
+rewritten.</p>
+<h2 id="verification-reproducer">Verification reproducer</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> dependencies/HelixDevelopment/VisionEngine</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">go</span> test <span class="at">-race</span> <span class="at">-count</span><span class="op">=</span>1 ./...</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./challenges/scripts/visionengine_describe_challenge.sh</span>            <span class="co"># normal, exit 0</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./challenges/scripts/visionengine_describe_challenge.sh</span> <span class="at">--mutate</span>   <span class="co"># paired-mutation, exit 99</span></span></code></pre></div>
+<h2 id="symbol--test-ledger">Symbol → Test ledger</h2>
+<h3 id="pkganalyzer"><code>pkg/analyzer</code></h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Covered by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Analyzer</code> (interface)</td>
+<td><code>stub_test.go</code>, runner exercises StubAnalyzer impl</td>
+</tr>
+<tr>
+<td><code>VideoProcessor</code> (interface)</td>
+<td>declared-only contract — no impl yet (TODO future round)</td>
+</tr>
+<tr>
+<td><code>StubAnalyzer</code></td>
+<td><code>stub_test.go</code>, runner <code>AnalyzeScreen</code>
+checks</td>
+</tr>
+<tr>
+<td><code>NewStubAnalyzer</code></td>
+<td><code>stub_test.go::TestStubAnalyzer_*</code>, runner</td>
+</tr>
+<tr>
+<td><code>NewStubAnalyzerWithProvider</code></td>
+<td><code>stub_test.go::TestStubAnalyzer_WithProvider</code></td>
+</tr>
+<tr>
+<td><code>StubAnalyzer.SetTranslator</code></td>
+<td><code>i18n_callsites_test.go</code></td>
+</tr>
+<tr>
+<td><code>StubAnalyzer.AnalyzeScreen</code></td>
+<td><code>stub_test.go</code> + runner (positive + negative-path empty
+buffer)</td>
+</tr>
+<tr>
+<td><code>StubAnalyzer.CompareScreens</code></td>
+<td><code>stub_test.go::TestStubAnalyzer_CompareScreens</code></td>
+</tr>
+<tr>
+<td><code>StubAnalyzer.DetectElements</code></td>
+<td><code>stub_test.go::TestStubAnalyzer_DetectElements</code></td>
+</tr>
+<tr>
+<td><code>StubAnalyzer.DetectText</code></td>
+<td><code>stub_test.go::TestStubAnalyzer_DetectText</code></td>
+</tr>
+<tr>
+<td><code>StubAnalyzer.IdentifyScreen</code></td>
+<td><code>stub_test.go::TestStubAnalyzer_IdentifyScreen</code></td>
+</tr>
+<tr>
+<td><code>StubAnalyzer.DetectIssues</code></td>
+<td><code>stub_test.go::TestStubAnalyzer_DetectIssues</code></td>
+</tr>
+<tr>
+<td><code>ErrEmptyScreenshot</code></td>
+<td>runner check 2 (negative-path proof)</td>
+</tr>
+<tr>
+<td><code>ErrAnalysisFailed</code>, <code>ErrComparisonFailed</code>,
+<code>ErrDetectionFailed</code>,
+<code>ErrIdentificationFailed</code></td>
+<td>sentinel — referenced by impl returns; covered transitively</td>
+</tr>
+<tr>
+<td><code>Rect.Contains</code>, <code>.Overlaps</code>,
+<code>.Area</code>, <code>.Center</code></td>
+<td><code>types_test.go</code> + runner check 5</td>
+</tr>
+<tr>
+<td><code>UIElement</code>, <code>TextRegion</code>,
+<code>ScreenAnalysis</code>, <code>ScreenDiff</code>,
+<code>ScreenIdentity</code>, <code>Action</code>,
+<code>VisualIssue</code>, <code>Size</code>, <code>KeyFrame</code></td>
+<td>type-only — composed in runner + graph tests</td>
+</tr>
+<tr>
+<td><code>LLMVisionProvider</code> (interface)</td>
+<td><code>stub_test.go::TestStubAnalyzer_WithProvider</code></td>
+</tr>
+<tr>
+<td><code>fingerprint</code> (unexported helper)</td>
+<td>exercised via AnalyzeScreen — fingerprint shown in runner
+output</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pkggraph"><code>pkg/graph</code></h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Covered by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NavigationGraph</code> (interface)</td>
+<td><code>graph_test.go</code>, runner check 3 + 4</td>
+</tr>
+<tr>
+<td><code>NewNavigationGraph</code></td>
+<td><code>graph_test.go::TestNewNavigationGraph</code>, runner</td>
+</tr>
+<tr>
+<td><code>*navigationGraph.AddScreen</code></td>
+<td><code>graph_test.go</code>, runner</td>
+</tr>
+<tr>
+<td><code>*navigationGraph.AddTransition</code></td>
+<td><code>graph_test.go</code>, runner + paired-mutation Challenge</td>
+</tr>
+<tr>
+<td><code>*navigationGraph.CurrentScreen</code>/<code>SetCurrent</code></td>
+<td><code>graph_test.go</code>, runner</td>
+</tr>
+<tr>
+<td><code>*navigationGraph.PathTo</code></td>
+<td><code>graph_test.go::TestPathTo_*</code>, runner check 3</td>
+</tr>
+<tr>
+<td><code>*navigationGraph.Screens</code>/<code>Transitions</code></td>
+<td><code>graph_test.go</code>, runner export checks</td>
+</tr>
+<tr>
+<td><code>ExportDOT</code>, <code>ExportJSON</code>,
+<code>ExportMermaid</code></td>
+<td><code>export_test.go</code>, runner check 4 (all three
+back-ends)</td>
+</tr>
+<tr>
+<td><code>ErrScreenNotFound</code>, <code>ErrNoPath</code>,
+<code>ErrEmptyGraph</code>, <code>ErrSelfTransition</code>,
+<code>ErrDuplicateScreen</code></td>
+<td><code>graph_test.go</code> (negative-path assertions)</td>
+</tr>
+<tr>
+<td><code>Transition</code></td>
+<td>composed by <code>PathTo</code> — runner inspects len(path)==2</td>
+</tr>
+<tr>
+<td>stress / automation / integration / security suites</td>
+<td><code>graph_{stress,automation,integration,security}_test.go</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pkgllmvision"><code>pkg/llmvision</code></h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Covered by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VisionProvider</code> (interface)</td>
+<td><code>provider_test.go</code></td>
+</tr>
+<tr>
+<td><code>OpenAIVisionProvider</code></td>
+<td><code>openai.go</code> impl + <code>provider_test.go</code>
+construction</td>
+</tr>
+<tr>
+<td><code>AnthropicVisionProvider</code></td>
+<td><code>anthropic.go</code> impl + provider_test</td>
+</tr>
+<tr>
+<td><code>GeminiVisionProvider</code></td>
+<td><code>gemini.go</code> impl + provider_test</td>
+</tr>
+<tr>
+<td><code>QwenVLProvider</code></td>
+<td><code>qwen.go</code> impl + provider_test</td>
+</tr>
+<tr>
+<td><code>KimiVisionProvider</code></td>
+<td><code>kimi.go</code> impl + provider_test</td>
+</tr>
+<tr>
+<td><code>StepGUIVisionProvider</code></td>
+<td><code>stepgui.go</code> impl + provider_test</td>
+</tr>
+<tr>
+<td><code>OllamaVisionProvider</code></td>
+<td><code>ollama_test.go</code> (offline-skip pattern)</td>
+</tr>
+<tr>
+<td><code>AsticaVisionProvider</code></td>
+<td><code>astica_test.go</code></td>
+</tr>
+<tr>
+<td><code>FallbackChain</code></td>
+<td><code>provider_test.go::TestFallback*</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pkgopencv"><code>pkg/opencv</code></h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Covered by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stub.go (no-vision tag)</td>
+<td>compiled in default-build path of <code>go test ./...</code></td>
+</tr>
+<tr>
+<td>vision.go (vision tag)</td>
+<td>gated by <code>-tags vision</code> — not in standard CI run</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pkgconfig"><code>pkg/config</code></h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Covered by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LoadFromEnv</code>, <code>Validate</code></td>
+<td><code>config_test.go</code> (real env-var parsing,
+error-classification)</td>
+</tr>
+<tr>
+<td>i18n-routed validation errors</td>
+<td><code>config_test.go</code> + <code>pkg/llmvision</code>
+callsites</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pkgi18n"><code>pkg/i18n</code></h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Covered by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Translator</code> (interface)</td>
+<td><code>translator_test.go</code></td>
+</tr>
+<tr>
+<td><code>NoopTranslator</code></td>
+<td><code>translator_test.go::TestNoopTranslator</code>, runner check
+6</td>
+</tr>
+<tr>
+<td>bundled <code>active.en.yaml</code></td>
+<td>consumed by <code>analyzer/i18n_defaults.go</code> +
+<code>llmvision/i18n_defaults.go</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="pkgremote"><code>pkg/remote</code></h3>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Covered by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VisionPool</code></td>
+<td>covered by <code>remote_test.go</code>; round-40 SSH wiring closed
+sentinel bluffs</td>
+</tr>
+<tr>
+<td><code>EnsureReady</code>, <code>Shutdown</code></td>
+<td>round-40 anti-bluff close-out (commit <code>8dbf6fd</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="anti-bluff-invariants-on-this-ledger">Anti-bluff invariants on
+this ledger</h2>
+<ol type="1">
+<li>Every test referenced above MUST end the relevant assertion path in
+<code>require.NoError</code> or <code>assert.Equal</code> on a real
+return value — never on a sentinel &quot;function was called&quot; probe.</li>
+<li>Runner-side checks print bilingual (5-locale) labels per CONST-046
+so captured artefacts cannot be English-only smoke.</li>
+<li>Paired-mutation Challenge (<code>--mutate</code>) MUST exit 99
+(genuine regression detection). A <code>0</code> from the mutate path
+proves the Challenge is a bluff.</li>
+<li>Coverage gaps (e.g. <code>VideoProcessor</code> interface has no
+impl yet) are listed honestly above — pretending they&#39;re covered would
+itself be a CONST-035 violation.</li>
+</ol>
+<h2 id="evidence-round-297">Evidence (round 297)</h2>
+<pre><code>$ go test -race -count=1 ./...
+ok  digital.vasic.visionengine/pkg/analyzer    1.013s
+ok  digital.vasic.visionengine/pkg/config      1.015s
+ok  digital.vasic.visionengine/pkg/graph       1.398s
+ok  digital.vasic.visionengine/pkg/i18n        1.010s
+ok  digital.vasic.visionengine/pkg/llmvision   1.093s
+ok  digital.vasic.visionengine/pkg/opencv      1.021s
+ok  digital.vasic.visionengine/pkg/remote      1.127s
+
+$ ./challenges/scripts/visionengine_describe_challenge.sh ; echo $?
+[visionengine_describe_challenge] PASS — runtime evidence captured per §11.9
+0
+
+$ ./challenges/scripts/visionengine_describe_challenge.sh --mutate ; echo $?
+[visionengine_describe_challenge] mutation correctly detected — Challenge is genuine (exit 99)
+99</code></pre>
+</body>
+</html>

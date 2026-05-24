@@ -6,344 +6,523 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>ARCHITECTURE</title>
   <style>
-    /* Default styles provided by pandoc.
-    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
-    */
-    html {
-      color: #1a1a1a;
-      background-color: #fdfdfd;
-    }
-    body {
-      margin: 0 auto;
-      max-width: 36em;
-      padding-left: 50px;
-      padding-right: 50px;
-      padding-top: 50px;
-      padding-bottom: 50px;
-      hyphens: auto;
-      overflow-wrap: break-word;
-      text-rendering: optimizeLegibility;
-      font-kerning: normal;
-    }
-    @media (max-width: 600px) {
-      body {
-        font-size: 0.9em;
-        padding: 12px;
-      }
-      h1 {
-        font-size: 1.8em;
-      }
-    }
-    @media print {
-      html {
-        background-color: white;
-      }
-      body {
-        background-color: transparent;
-        color: black;
-        font-size: 12pt;
-      }
-      p, h2, h3 {
-        orphans: 3;
-        widows: 3;
-      }
-      h2, h3, h4 {
-        page-break-after: avoid;
-      }
-    }
-    p {
-      margin: 1em 0;
-    }
-    a {
-      color: #1a1a1a;
-    }
-    a:visited {
-      color: #1a1a1a;
-    }
-    img {
-      max-width: 100%;
-    }
-    svg {
-      height: auto;
-      max-width: 100%;
-    }
-    h1, h2, h3, h4, h5, h6 {
-      margin-top: 1.4em;
-    }
-    h5, h6 {
-      font-size: 1em;
-      font-style: italic;
-    }
-    h6 {
-      font-weight: normal;
-    }
-    ol, ul {
-      padding-left: 1.7em;
-      margin-top: 1em;
-    }
-    li > ol, li > ul {
-      margin-top: 0;
-    }
-    blockquote {
-      margin: 1em 0 1em 1.7em;
-      padding-left: 1em;
-      border-left: 2px solid #e6e6e6;
-      color: #606060;
-    }
-    code {
-      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
-      font-size: 85%;
-      margin: 0;
-      hyphens: manual;
-    }
-    pre {
-      margin: 1em 0;
-      overflow: auto;
-    }
-    pre code {
-      padding: 0;
-      overflow: visible;
-      overflow-wrap: normal;
-    }
-    .sourceCode {
-     background-color: transparent;
-     overflow: visible;
-    }
-    hr {
-      border: none;
-      border-top: 1px solid #1a1a1a;
-      height: 1px;
-      margin: 1em 0;
-    }
-    table {
-      margin: 1em 0;
-      border-collapse: collapse;
-      width: 100%;
-      overflow-x: auto;
-      display: block;
-      font-variant-numeric: lining-nums tabular-nums;
-    }
-    table caption {
-      margin-bottom: 0.75em;
-    }
-    tbody {
-      margin-top: 0.5em;
-      border-top: 1px solid #1a1a1a;
-      border-bottom: 1px solid #1a1a1a;
-    }
-    th {
-      border-top: 1px solid #1a1a1a;
-      padding: 0.25em 0.5em 0.25em 0.5em;
-    }
-    td {
-      padding: 0.125em 0.5em 0.25em 0.5em;
-    }
-    header {
-      margin-bottom: 4em;
-      text-align: center;
-    }
-    #TOC li {
-      list-style: none;
-    }
-    #TOC ul {
-      padding-left: 1.3em;
-    }
-    #TOC > ul {
-      padding-left: 0;
-    }
-    #TOC a:not(:hover) {
-      text-decoration: none;
-    }
-    code{white-space: pre-wrap;}
-    span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
-    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    /* The extra [class] is a hack that increases specificity enough to
-       override a similar rule in reveal.js */
-    ul.task-list[class]{list-style: none;}
-    ul.task-list li input[type="checkbox"] {
-      font-size: inherit;
-      width: 0.8em;
-      margin: 0 0.8em 0.2em -1.6em;
-      vertical-align: middle;
-    }
-    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-    /* CSS for syntax highlighting */
-    html { -webkit-text-size-adjust: 100%; }
-    pre > code.sourceCode { white-space: pre; position: relative; }
-    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-    pre > code.sourceCode > span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode > span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre > code.sourceCode { white-space: pre-wrap; }
-    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code > span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code > span > a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
-        color: #aaaaaa;
-      }
-    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-    div.sourceCode
-      {   }
-    @media screen {
-    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-    code span.at { color: #7d9029; } /* Attribute */
-    code span.bn { color: #40a070; } /* BaseN */
-    code span.bu { color: #008000; } /* BuiltIn */
-    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-    code span.ch { color: #4070a0; } /* Char */
-    code span.cn { color: #880000; } /* Constant */
-    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-    code span.dt { color: #902000; } /* DataType */
-    code span.dv { color: #40a070; } /* DecVal */
-    code span.er { color: #ff0000; font-weight: bold; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #40a070; } /* Float */
-    code span.fu { color: #06287e; } /* Function */
-    code span.im { color: #008000; font-weight: bold; } /* Import */
-    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-    code span.op { color: #666666; } /* Operator */
-    code span.ot { color: #007020; } /* Other */
-    code span.pp { color: #bc7a00; } /* Preprocessor */
-    code span.sc { color: #4070a0; } /* SpecialChar */
-    code span.ss { color: #bb6688; } /* SpecialString */
-    code span.st { color: #4070a0; } /* String */
-    code span.va { color: #19177c; } /* Variable */
-    code span.vs { color: #4070a0; } /* VerbatimString */
-    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
-  </style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+font-size: 12pt;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+.display.math{display: block; text-align: center; margin: 0.5rem auto;}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
 </head>
 <body>
 <header id="title-block-header">
 <h1 class="title">ARCHITECTURE</h1>
 </header>
 <h1 id="visionengine-architecture">VisionEngine Architecture</h1>
-<h2 id="overview">Overview</h2>
-<p>Go module (<code>digital.vasic.visionengine</code>) providing
-computer vision and LLM Vision for UI analysis, screenshot comparison,
-and navigation graph building. Used by HelixQA for autonomous QA
-testing.</p>
-<h2 id="package-structure">Package Structure</h2>
-<pre><code>pkg/
-  analyzer/   -- Core types (ScreenAnalysis, UIElement, Action, ScreenIdentity)
-  graph/      -- NavigationGraph (directed graph, BFS pathfinding, coverage tracking)
-  llmvision/  -- LLM Vision API adapters (OpenAI, Anthropic, Gemini, Qwen, Ollama)
-  opencv/     -- OpenCV stubs (real impl behind `//go:build vision` tag)
-  config/     -- Configuration from environment variables
-  remote/     -- SSH-based Ollama deployment and VisionSlot pool</code></pre>
-<h2 id="vision-provider-abstraction">Vision Provider Abstraction</h2>
-<p>All vision providers implement the <code>VisionProvider</code>
-interface:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> VisionProvider <span class="kw">interface</span> <span class="op">{</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    AnalyzeImage<span class="op">(</span>ctx context<span class="op">.</span>Context<span class="op">,</span> image <span class="op">[]</span><span class="dt">byte</span><span class="op">,</span> prompt <span class="dt">string</span><span class="op">)</span> <span class="op">(</span><span class="dt">string</span><span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    CompareImages<span class="op">(</span>ctx context<span class="op">.</span>Context<span class="op">,</span> img1<span class="op">,</span> img2 <span class="op">[]</span><span class="dt">byte</span><span class="op">,</span> prompt <span class="dt">string</span><span class="op">)</span> <span class="op">(</span><span class="dt">string</span><span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    SupportsVision<span class="op">()</span> <span class="dt">bool</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    MaxImageSize<span class="op">()</span> <span class="dt">int</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    Name<span class="op">()</span> <span class="dt">string</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
-<p>Five provider implementations: <code>OpenAIProvider</code>,
-<code>AnthropicProvider</code>, <code>GeminiProvider</code>,
-<code>QwenProvider</code>, <code>OllamaProvider</code>. Each validates
-inputs (empty image, empty prompt, size limits) before making HTTP calls
-to the respective API.</p>
-<p><code>FallbackProvider</code> wraps multiple providers in a chain. If
-the primary fails, subsequent providers are tried in order. Thread-safe
-via <code>sync.RWMutex</code>.</p>
-<h2 id="navigation-graph">Navigation Graph</h2>
-<p><code>NavigationGraph</code> is the most important type -- imported
-directly by HelixQA. It is a directed graph where:</p>
+<p><strong>Module:</strong> <code>digital.vasic.visionengine</code></p>
+<p>VisionEngine provides computer vision and LLM Vision capabilities for
+UI analysis and navigation graph building. It is consumed by HelixQA
+autonomous sessions for screen analysis, element detection, and app
+navigation tracking.</p>
+<hr />
+<h2 id="package-overview">Package Overview</h2>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pkg/analyzer</code></td>
+<td>Core interfaces and shared types</td>
+</tr>
+<tr>
+<td><code>pkg/graph</code></td>
+<td>NavigationGraph with BFS pathfinding and export</td>
+</tr>
+<tr>
+<td><code>pkg/llmvision</code></td>
+<td>LLM Vision API adapters (pure Go HTTP)</td>
+</tr>
+<tr>
+<td><code>pkg/opencv</code></td>
+<td>OpenCV integration (stub by default; real impl behind
+<code>vision</code> build tag)</td>
+</tr>
+<tr>
+<td><code>pkg/config</code></td>
+<td>Configuration from environment variables</td>
+</tr>
+<tr>
+<td><code>pkg/remote</code></td>
+<td>Multi-instance vision inference pool management for remote GPU
+hosts</td>
+</tr>
+<tr>
+<td><code>pkg/i18n</code></td>
+<td>Minimal dependency-free <code>Translator</code> interface for
+message localization</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="analyzer-interface">Analyzer Interface</h2>
+<p><code>pkg/analyzer</code> defines the central contract:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode go"><code class="sourceCode go"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">type</span> Analyzer <span class="kw">interface</span> <span class="op">{</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    AnalyzeScreen<span class="op">(</span>ctx context<span class="op">.</span>Context<span class="op">,</span> screenshot <span class="op">[]</span><span class="dt">byte</span><span class="op">)</span> <span class="op">(</span>ScreenAnalysis<span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    CompareScreens<span class="op">(</span>ctx context<span class="op">.</span>Context<span class="op">,</span> before<span class="op">,</span> after <span class="op">[]</span><span class="dt">byte</span><span class="op">)</span> <span class="op">(</span>ScreenDiff<span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    DetectElements<span class="op">(</span>screenshot <span class="op">[]</span><span class="dt">byte</span><span class="op">)</span> <span class="op">([]</span>UIElement<span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    DetectText<span class="op">(</span>screenshot <span class="op">[]</span><span class="dt">byte</span><span class="op">)</span> <span class="op">([]</span>TextRegion<span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    IdentifyScreen<span class="op">(</span>ctx context<span class="op">.</span>Context<span class="op">,</span> screenshot <span class="op">[]</span><span class="dt">byte</span><span class="op">)</span> <span class="op">(</span>ScreenIdentity<span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    DetectIssues<span class="op">(</span>ctx context<span class="op">.</span>Context<span class="op">,</span> screenshot <span class="op">[]</span><span class="dt">byte</span><span class="op">)</span> <span class="op">([]</span>VisualIssue<span class="op">,</span> <span class="dt">error</span><span class="op">)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Key types:</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UIElement</code></td>
+<td>Detected widget with bounding box, type, and confidence</td>
+</tr>
+<tr>
+<td><code>ScreenAnalysis</code></td>
+<td>Full analysis result: elements, text, layout hash, description</td>
+</tr>
+<tr>
+<td><code>ScreenDiff</code></td>
+<td>Pixel-level diff between two frames</td>
+</tr>
+<tr>
+<td><code>VisualIssue</code></td>
+<td>Anomaly with category (visual/UX/accessibility/functional) and
+severity</td>
+</tr>
+</tbody>
+</table>
+<p>Concrete implementations satisfy this interface:
+<code>StubAnalyzer</code> (delegates to <code>pkg/llmvision</code>) and
+the OpenCV-backed analyzer (delegates to <code>pkg/opencv</code>,
+requires build tag <code>vision</code>).</p>
+<hr />
+<h2 id="navigationgraph">NavigationGraph</h2>
+<p><code>pkg/graph.NavigationGraph</code> is the most-imported package —
+HelixQA&#39;s autonomous session uses it to record and replay app navigation
+paths.</p>
+<pre class="mermaid"><code>flowchart LR
+    A[AddScreen] --&gt; G[(NavigationGraph)]
+    B[AddTransition] --&gt; G
+    G --&gt; C[PathTo BFS]
+    G --&gt; D[ExportDOT]
+    G --&gt; E[ExportJSON]
+    G --&gt; F[ExportMermaid]</code></pre>
 <ul>
-<li><strong>Nodes</strong> are <code>ScreenNode</code> (screen identity
-+ visited flag + timestamp)</li>
-<li><strong>Edges</strong> are <code>Transition</code> (from/to screen
-IDs + action taken)</li>
+<li><strong>Nodes</strong> are <code>ScreenIdentity</code> values (ID,
+Name, optional metadata).</li>
+<li><strong>Edges</strong> are <code>Action</code> values (type, target,
+optional payload) with a source and destination screen ID.</li>
+<li><strong>BFS pathfinding</strong> (<code>PathTo</code>) returns the
+shortest action sequence from the current screen to a target screen,
+enabling the autonomous navigator to reach any known screen
+deterministically.</li>
+<li>Thread safety is provided by <code>sync.RWMutex</code>; read paths
+(<code>PathTo</code>, exports) use <code>RLock</code>, write paths
+(<code>AddScreen</code>, <code>AddTransition</code>,
+<code>SetCurrent</code>) use <code>Lock</code>.</li>
 </ul>
-<p>Key operations:</p>
+<hr />
+<h2 id="llm-vision-providers">LLM Vision Providers</h2>
+<p><code>pkg/llmvision</code> implements the <code>VisionProvider</code>
+interface over pure Go HTTP calls (no CGo dependency):</p>
+<pre><code>VisionProvider interface
+  ├─ OpenAIProvider    (GPT-4o vision endpoint)
+  ├─ AnthropicProvider (Claude vision messages API)
+  ├─ GeminiProvider    (Gemini Pro Vision API)
+  ├─ QwenProvider      (Qwen-VL API)
+  ├─ OllamaProvider    (Ollama local vision API)
+  ├─ KimiProvider      (Kimi vision API)
+  ├─ AsticaProvider    (Astica vision API)
+  └─ StepGUIProvider   (StepFun GUI vision API)</code></pre>
+<p><code>FallbackProvider</code> wraps a priority-ordered list of
+providers and retries the next provider on any error, giving
+multi-provider resilience without caller-side retry logic.</p>
+<p>All providers:</p>
 <ul>
-<li><code>AddScreen()</code> / <code>AddTransition()</code> -- build the
-graph during exploration</li>
-<li><code>PathTo(targetID)</code> -- BFS shortest path from current
-screen to target</li>
-<li><code>Coverage()</code> -- ratio of visited screens to total
-screens</li>
-<li><code>UnvisitedScreens()</code> -- guides the curiosity phase to
-unexplored areas</li>
-<li><code>Export()</code> -- serializable <code>GraphSnapshot</code> for
-JSON/Mermaid output</li>
+<li>Encode images as base64 in the request body.</li>
+<li>Validate image dimensions and byte size before sending.</li>
+<li>Return a description string with raw analysis from the
+provider.</li>
 </ul>
-<p>Thread-safe via <code>sync.RWMutex</code>. Self-transitions are
-rejected.</p>
+<hr />
+<h2 id="opencv-integration">OpenCV Integration</h2>
+<p><code>pkg/opencv</code> ships two implementations selected at compile
+time:</p>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th>File</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Default</td>
+<td><code>stub.go</code> (<code>//go:build !vision</code>)</td>
+<td>Returns <code>ErrOpenCVNotAvailable</code> for all calls</td>
+</tr>
+<tr>
+<td><code>vision</code> tag</td>
+<td><code>color_vision.go</code>, <code>detector_vision.go</code>,
+<code>differ_vision.go</code>, <code>factory_vision.go</code>,
+<code>video_vision.go</code> (<code>//go:build vision</code>)</td>
+<td>Full GoCV SSIM, template matching, contour detection, color
+analysis, video processing</td>
+</tr>
+</tbody>
+</table>
+<p>Interfaces defined in <code>interfaces.go</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Differ</code></td>
+<td>SSIM, pixel diff, change mask between two images</td>
+</tr>
+<tr>
+<td><code>ElementDetector</code></td>
+<td>Edge detection, contour detection, template matching</td>
+</tr>
+<tr>
+<td><code>ColorAnalyzer</code></td>
+<td>Dominant color extraction, contrast ratio analysis</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>factory.go</code> file provides <code>NewStubDiffer</code>,
+<code>NewStubElementDetector</code>, <code>NewStubColorAnalyzer</code>
+for stub-mode construction. The <code>factory_vision.go</code> file
+(build tag <code>vision</code>) provides <code>NewDiffer</code>,
+<code>NewElementDetector</code>, <code>NewColorAnalyzer</code>,
+<code>NewVideoProcessor</code> backed by GoCV.</p>
+<p>This approach keeps the module buildable and testable on any machine
+without OpenCV installed while enabling full CV capabilities when GoCV
+is available.</p>
+<hr />
 <h2 id="remote-deployment">Remote Deployment</h2>
-<p>The <code>remote</code> package manages Ollama vision models on
-remote hosts via SSH:</p>
-<ol type="1">
-<li><strong>Deployer</strong> -- <code>EnsureReady(ctx)</code> performs:
-install Ollama if missing, start service if stopped, pull model if
-unavailable. Returns the API endpoint URL.</li>
-<li><strong>VisionSlot</strong> -- Dedicated inference slot per
-platform/device. Each slot serializes vision calls via
-<code>sync.Mutex</code> so one slow inference does not block other
-platforms.</li>
-<li><strong>SlotPool</strong> -- Manages multiple VisionSlots, one per
-device under test.</li>
-</ol>
-<h2 id="screenshot-analysis-pipeline">Screenshot Analysis Pipeline</h2>
-<pre><code>Screenshot ([]byte)
-       |
-  VisionProvider.AnalyzeImage(image, prompt)
-       |
-  LLM response (JSON string)
-       |
-  Parse into ScreenAnalysis
-    +-- UIElement[]    (buttons, inputs, links with bounding boxes)
-    +-- TextRegion[]   (detected text with positions)
-    +-- VisualIssue[]  (overlap, truncation, contrast problems)
-    +-- Action[]       (possible navigation actions)
-       |
-  NavigationGraph.AddScreen() / AddTransition()</code></pre>
-<h2 id="build-tags">Build Tags</h2>
-<ul>
-<li><strong>Default</strong> (no tags): OpenCV stubs return errors; LLM
-providers work normally. Suitable for testing and CI.</li>
-<li><strong><code>vision</code></strong> tag: Full OpenCV/GoCV support
-for local image processing (SSIM, color analysis, element detection,
-video frame extraction).</li>
-</ul>
-<h2 id="key-design-decisions">Key Design Decisions</h2>
-<ul>
-<li><strong>Stub pattern</strong> for OpenCV: The module compiles
-without CGO dependencies by default. OpenCV features are behind build
-tags.</li>
-<li><strong>FallbackProvider</strong>: Multi-provider resilience ensures
-QA sessions continue even if one API is down.</li>
-<li><strong>Per-slot serialization</strong>: Prevents contention when
-multiple devices run QA sessions simultaneously against a shared Ollama
-instance.</li>
-<li><strong>SSH-based deployment</strong>: No agent software needed on
-remote GPU hosts -- standard SSH is sufficient.</li>
-</ul>
+<p><code>pkg/remote</code> manages multi-instance vision inference pools
+on remote GPU hosts, supporting both Ollama and llama.cpp backends.</p>
+<h3 id="key-types">Key Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VisionPool</code></td>
+<td>Pool of <code>VisionSlot</code> instances on a remote GPU host;
+manages slot assignment, SSH-backed lifecycle</td>
+</tr>
+<tr>
+<td><code>VisionSlot</code></td>
+<td>A single inference slot (backend + port) assigned to one device at a
+time</td>
+</tr>
+<tr>
+<td><code>LlamaCppDeployer</code></td>
+<td>Manages llama-server processes on a remote host via SSH (start,
+stop, GPU free/restore)</td>
+</tr>
+<tr>
+<td><code>SSHConfig</code></td>
+<td>SSH credentials and connection parameters for in-band process
+management</td>
+</tr>
+<tr>
+<td><code>DistributionConfig</code></td>
+<td>Configuration for distributed RPC across multiple GPU hosts</td>
+</tr>
+<tr>
+<td><code>PoolConfig</code></td>
+<td>Configuration for a <code>VisionPool</code> (host, backend type,
+port range)</td>
+</tr>
+<tr>
+<td><code>SlotTarget</code></td>
+<td>Target specification for slot assignment (device ID, preferred
+backend)</td>
+</tr>
+<tr>
+<td><code>LlamaCppConfig</code></td>
+<td>llama.cpp–specific configuration (model path, GPU layers, context
+size)</td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart LR
+    A[VisionPool] --&gt; B[VisionSlot]
+    B --&gt; C[LlamaCppDeployer]
+    C --&gt; D[Remote GPU Host via SSH]
+    A --&gt; E[DistributionConfig]
+    E --&gt; F[Multiple GPU Hosts RPC]</code></pre>
+<p><code>LlamaCppDeployer.FreeGPU</code> stops Ollama on the remote host
+to free VRAM for llama-server instances.
+<code>LlamaCppDeployer.StartInstance</code> launches llama-server at a
+given port. <code>LlamaCppDeployer.RestoreOllama</code> restarts Ollama
+after llama-server instances are done.</p>
+<p><code>VisionPool.EnsureReady</code> validates configuration and (when
+<code>SSHConfig</code> is provided) probes the remote backend for
+reachability. Callers that supply an empty <code>SSHConfig.Host</code>
+receive <code>ErrBackendVerificationNotImplemented</code> and MUST
+independently probe the backend (HTTP health-check or TCP dial).</p>
+<hr />
+<h2 id="data-flow-autonomous-qa-screen-analysis">Data Flow: Autonomous
+QA Screen Analysis</h2>
+<pre class="mermaid"><code>sequenceDiagram
+    participant QA as HelixQA PlatformWorker
+    participant VE as VisionEngine Analyzer
+    participant NV as NavigationGraph
+    participant LV as LLMVision Provider
+
+    QA-&gt;&gt;VE: AnalyzeScreen(screenshot)
+    VE-&gt;&gt;LV: POST /vision (base64 image)
+    LV--&gt;&gt;VE: ProviderResponse
+    VE--&gt;&gt;QA: ScreenAnalysis{elements, text, issues}
+    QA-&gt;&gt;NV: AddScreen / AddTransition
+    QA-&gt;&gt;NV: PathTo(targetScreen)
+    NV--&gt;&gt;QA: []Action (BFS path)</code></pre>
 </body>
 </html>
