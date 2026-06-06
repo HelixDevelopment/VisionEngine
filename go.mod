@@ -18,5 +18,3 @@ require (
 	gocv.io/x/gocv v0.43.0
 	golang.org/x/crypto v0.51.0
 )
-
-replace digital.vasic.llmprovider => ../LLMProvider
