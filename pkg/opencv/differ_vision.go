@@ -49,7 +49,7 @@ func (d *realDiffer) SSIM(img1, img2 []byte) (float64, error) {
 	gocv.MatchTemplate(gray1, gray2, &result, gocv.TmCcoeffNormed, mask)
 
 	_, maxVal, _, _ := gocv.MinMaxLoc(result)
-	return maxVal, nil
+	return float64(maxVal), nil
 }
 
 // PixelDiff computes a pixel-level diff image between two images.
