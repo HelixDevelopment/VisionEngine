@@ -24,6 +24,11 @@ func NewColorAnalyzer() ColorAnalyzer {
 	return NewStubColorAnalyzer()
 }
 
+// NewFeatureDetector returns a stub FeatureDetector when OpenCV is not available.
+func NewFeatureDetector() FeatureDetector {
+	return NewStubFeatureDetector()
+}
+
 // NewVideoProcessor returns a stub VideoProcessor when OpenCV is not available.
 func NewVideoProcessor() analyzer.VideoProcessor {
 	return NewStubVideoProcessor()

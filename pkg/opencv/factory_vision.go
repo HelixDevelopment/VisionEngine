@@ -24,6 +24,11 @@ func NewColorAnalyzer() ColorAnalyzer {
 	return &realColorAnalyzer{}
 }
 
+// NewFeatureDetector returns a real OpenCV-backed ORB FeatureDetector.
+func NewFeatureDetector() FeatureDetector {
+	return &realFeatureDetector{}
+}
+
 // NewVideoProcessor returns a real OpenCV-backed VideoProcessor.
 func NewVideoProcessor() analyzer.VideoProcessor {
 	return &realVideoProcessor{}
