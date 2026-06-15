@@ -19,6 +19,7 @@ const (
 	fallbackOpenCVNotAvailable = "OpenCV not available: build with -tags vision"
 	fallbackOpenCVInvalidImage = "invalid image data"
 	fallbackOpenCVInvalidVideoPath = "invalid video path"
+	fallbackOpenCVNoFeatures = "no features detected in image"
 )
 
 // resolveOrFallback routes a user-facing string through tr.T. When the

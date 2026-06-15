@@ -22,7 +22,7 @@ func (d *realElementDetector) DetectEdges(img []byte) ([]analyzer.Rect, error) {
 		return nil, ErrInvalidImage
 	}
 
-	mat, err := gocv.IMDecode(img, gocv.IMReadGrayscale)
+	mat, err := gocv.IMDecode(img, gocv.IMReadGrayScale)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (d *realElementDetector) DetectContours(img []byte) ([]analyzer.Rect, error
 		return nil, ErrInvalidImage
 	}
 
-	mat, err := gocv.IMDecode(img, gocv.IMReadGrayscale)
+	mat, err := gocv.IMDecode(img, gocv.IMReadGrayScale)
 	if err != nil {
 		return nil, err
 	}
@@ -96,13 +96,13 @@ func (d *realElementDetector) TemplateMatch(img, template []byte) ([]analyzer.Re
 		return nil, ErrInvalidImage
 	}
 
-	mat, err := gocv.IMDecode(img, gocv.IMReadGrayscale)
+	mat, err := gocv.IMDecode(img, gocv.IMReadGrayScale)
 	if err != nil {
 		return nil, err
 	}
 	defer mat.Close()
 
-	tpl, err := gocv.IMDecode(template, gocv.IMReadGrayscale)
+	tpl, err := gocv.IMDecode(template, gocv.IMReadGrayScale)
 	if err != nil {
 		return nil, err
 	}

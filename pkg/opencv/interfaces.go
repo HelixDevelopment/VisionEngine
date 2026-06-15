@@ -34,3 +34,37 @@ type ColorAnalyzer interface {
 	// ContrastRatio computes the contrast ratio within a region of an image.
 	ContrastRatio(img []byte, region analyzer.Rect) (float64, error)
 }
+
+// Keypoint is a single ORB (Oriented FAST + Rotated BRIEF) salient point
+// detected in an image. It carries the sub-pixel location and the descriptor
+// metadata OpenCV reports for that point. It is a build-tag-independent value
+// type so callers (and the !vision stub) need not import gocv.
+type Keypoint struct {
+	// X, Y are the sub-pixel coordinates of the keypoint in the source image.
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	// Size is the diameter of the meaningful keypoint neighborhood.
+	Size float64 `json:"size"`
+	// Angle is the keypoint orientation in degrees ([0,360), -1 if N/A).
+	Angle float64 `json:"angle"`
+	// Response is the strength of the keypoint (used to rank/select the best).
+	Response float64 `json:"response"`
+	// Octave is the pyramid octave the keypoint was extracted from.
+	Octave int `json:"octave"`
+}
+
+// FeatureDetector provides ORB feature-detection capabilities: keypoint
+// extraction and descriptor matching. Unlike TemplateMatch (which only finds
+// pixel-exact occurrences under translation), ORB matching locates a template
+// within a source under translation plus mild scale and rotation, which is the
+// robust way to locate a UI element/template.
+type FeatureDetector interface {
+	// DetectKeypoints extracts ORB keypoints from an image. The returned slice
+	// is ordered by detector response (strongest first) and may be empty for a
+	// featureless image (e.g. a flat fill).
+	DetectKeypoints(img []byte) ([]Keypoint, error)
+	// MatchFeatures detects ORB keypoints + descriptors in both images and
+	// returns the number of "good" matches surviving Lowe's ratio test. A higher
+	// count means the template is more likely present in the source.
+	MatchFeatures(img, template []byte) (int, error)
+}

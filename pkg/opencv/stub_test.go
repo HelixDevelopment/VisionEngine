@@ -162,6 +162,48 @@ func TestStubVideoProcessor_GenerateThumbnail_EmptyPath(t *testing.T) {
 	assert.ErrorIs(t, err, ErrInvalidVideoPath)
 }
 
+func TestStubFeatureDetector_DetectKeypoints_ReturnsOpenCVError(t *testing.T) {
+	f := NewStubFeatureDetector()
+	_, err := f.DetectKeypoints([]byte("img"))
+	assert.ErrorIs(t, err, ErrOpenCVNotAvailable)
+}
+
+func TestStubFeatureDetector_DetectKeypoints_EmptyImage(t *testing.T) {
+	f := NewStubFeatureDetector()
+	_, err := f.DetectKeypoints([]byte{})
+	assert.ErrorIs(t, err, ErrInvalidImage)
+}
+
+func TestStubFeatureDetector_MatchFeatures_ReturnsOpenCVError(t *testing.T) {
+	f := NewStubFeatureDetector()
+	_, err := f.MatchFeatures([]byte("img"), []byte("tpl"))
+	assert.ErrorIs(t, err, ErrOpenCVNotAvailable)
+}
+
+func TestStubFeatureDetector_MatchFeatures_EmptyImage(t *testing.T) {
+	f := NewStubFeatureDetector()
+	_, err := f.MatchFeatures([]byte{}, []byte("tpl"))
+	assert.ErrorIs(t, err, ErrInvalidImage)
+
+	_, err = f.MatchFeatures([]byte("img"), []byte{})
+	assert.ErrorIs(t, err, ErrInvalidImage)
+}
+
+func TestNewStubFeatureDetector_NotNil(t *testing.T) {
+	f := NewStubFeatureDetector()
+	require.NotNil(t, f)
+}
+
+func TestKeypoint_Fields(t *testing.T) {
+	kp := Keypoint{X: 1.5, Y: 2.5, Size: 7, Angle: 45, Response: 0.9, Octave: 1}
+	assert.Equal(t, 1.5, kp.X)
+	assert.Equal(t, 2.5, kp.Y)
+	assert.Equal(t, float64(7), kp.Size)
+	assert.Equal(t, float64(45), kp.Angle)
+	assert.Equal(t, 0.9, kp.Response)
+	assert.Equal(t, 1, kp.Octave)
+}
+
 func TestColor_Fields(t *testing.T) {
 	c := Color{R: 255, G: 128, B: 0}
 	assert.Equal(t, uint8(255), c.R)
