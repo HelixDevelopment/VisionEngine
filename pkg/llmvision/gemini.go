@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -193,5 +194,18 @@ func (p *GeminiProvider) sendRequest(ctx context.Context, body map[string]any) (
 		return "", fmt.Errorf("%w: no content in response", ErrInvalidResponse)
 	}
 
-	return result.Candidates[0].Content.Parts[0].Text, nil
+	// Gemini splits a single model turn across multiple parts; the
+	// complete answer is the concatenation of every part's text (this
+	// mirrors the official google-genai SDK `response.text` accessor).
+	// Returning only Parts[0].Text silently truncated multi-part
+	// responses — a §11.4 data-loss PASS-bluff.
+	var sb strings.Builder
+	for _, part := range result.Candidates[0].Content.Parts {
+		sb.WriteString(part.Text)
+	}
+	content := sb.String()
+	if content == "" {
+		return "", fmt.Errorf("%w: empty text content in response", ErrInvalidResponse)
+	}
+	return content, nil
 }
