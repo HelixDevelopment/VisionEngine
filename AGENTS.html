@@ -272,22 +272,22 @@ href="https://github.com/HelixDevelopment/HelixConstitution"
 class="uri">https://github.com/HelixDevelopment/HelixConstitution</a></p>
 <hr />
 <h1 id="agents.md-helixcode-authoritative-agent-guide">AGENTS.md —
-HelixCode Authoritative Agent Guide</h1>
+Project Authoritative Agent Guide</h1>
 <blockquote>
 <p><strong>Base agent rules:</strong>
 <code>HelixConstitution/AGENTS.md</code> — READ IT FIRST. All rules in
 <code>HelixConstitution/AGENTS.md</code> apply unconditionally. Rules
 below extend them and MUST NOT weaken any inherited clause.</p>
 </blockquote>
-<h2 id="helixcode-agent-guidelines">HelixCode Agent Guidelines</h2>
+<h2 id="helixcode-agent-guidelines">Project Agent Guidelines</h2>
 <p><strong>Version</strong>: 3.0.0 (Updated with full architecture
 audit) <strong>Date</strong>: 2026-04-30 <strong>Scope</strong>: All AI
-agents, human contributors, and automated processes working on HelixCode
-<strong>Authority</strong>: Derived from HelixAgent AGENTS.md with
-HelixCode-specific enhancements</p>
+agents, human contributors, and automated processes working on the project
+<strong>Authority</strong>: Derived from the parent project's AGENTS.md with
+project-specific enhancements</p>
 <hr />
 <h2 id="project-overview">Project Overview</h2>
-<p>HelixCode is an enterprise-grade distributed AI development platform
+<p>The project is an enterprise-grade distributed AI development platform
 built in Go. It enables intelligent task division, work preservation,
 cross-platform development workflows, and multi-provider LLM integration
 through a unified REST API, CLI, Terminal UI, Desktop, and Mobile client
@@ -354,7 +354,7 @@ System</h2>
 from the <code>helix_code/</code> subdirectory, not the repository
 root.</p>
 <div class="sourceCode" id="cb1"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> HelixCode</span></code></pre></div>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> &lt;project_root&gt;</span></code></pre></div>
 <h3 id="build-commands">Build Commands</h3>
 <table>
 <colgroup>
@@ -1095,7 +1095,7 @@ Weaviate, mock-Slack, multicast router</li>
 </ul>
 <h3 id="challenge-framework-testse2echallenges">Challenge Framework
 (<code>tests/e2e/challenges/</code>)</h3>
-<p>The most rigorous test system validates HelixCode by having it
+<p>The most rigorous test system validates the project by having it
 <strong>generate real projects</strong> and testing them: -
 <strong>Challenge Definitions</strong>: JSON specs (ASCII art generator,
 CLI task manager, JSON validator, notes API, tic-tac-toe TUI, URL
@@ -1108,7 +1108,7 @@ interfaces across 15+ providers and worker pool distributions</p>
 <h3 id="test-scripts-summary">Test Scripts Summary</h3>
 <div class="sourceCode" id="cb6"><pre
 class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Basic</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> HelixCode <span class="kw">&amp;&amp;</span> <span class="fu">make</span> test</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> &lt;project_root&gt; <span class="kw">&amp;&amp;</span> <span class="fu">make</span> test</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Full infrastructure (recommended for validation)</span></span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> test-infra-up</span>
@@ -1134,7 +1134,7 @@ class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="
 (80, 443), prometheus (9090), grafana (3000)</p>
 <h3 id="quick-start">Quick Start</h3>
 <div class="sourceCode" id="cb7"><pre
-class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> HelixCode</span>
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> &lt;project_root&gt;</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> .env.example .env</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit .env with secure passwords</span></span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> compose up <span class="at">-d</span></span>
@@ -1315,13 +1315,13 @@ with <code>SKIP-OK: #&lt;ticket&gt;</code> markers</p>
 Usability Mandate</h2>
 <p>A test or Challenge that PASSES is a CLAIM that the tested behavior
 <strong>works for the end user of the product</strong>.</p>
-<p>The HelixAgent project has repeatedly hit the failure mode where
+<p>The parent project has repeatedly hit the failure mode where
 every test ran green AND every Challenge reported PASS, yet most product
 features did not actually work — buggy challenge wrappers masked failed
 assertions, scripts checked file existence without executing the file,
 “reachability” tests tolerated timeouts, contracts were honest in
 advertising but broken in dispatch. <strong>This MUST NOT recur in
-HelixCode.</strong></p>
+the project.</strong></p>
 <p>Every PASS result MUST guarantee: a. <strong>Quality</strong> —
 correct behavior under real inputs, edge cases, concurrency b.
 <strong>Completion</strong> — wired end-to-end with no stub/placeholder
@@ -1424,7 +1424,7 @@ recovery time if known.</p>
 <h2
 id="const-039-all-providers-and-models-integration-mandate">CONST-039:
 All Providers and Models Integration Mandate</h2>
-<p><strong>Rule</strong>: HelixCode MUST integrate with ALL providers
+<p><strong>Rule</strong>: The project MUST integrate with ALL providers
 that LLMsVerifier supports, subject only to: 1. The provider being
 explicitly disabled in configuration (<code>enabled: false</code>) 2.
 The API key being absent and the provider requiring one 3. The provider
@@ -1716,7 +1716,7 @@ the user’s <code>user@1000.service</code> was again SIGKILLed
 (<code>status=9/KILL</code>), this time WITHOUT a kernel OOM kill
 (systemd-oomd inactive, <code>MemoryMax=infinity</code>) — a different
 vector than Incident #1. Cascade killed <code>claude</code>,
-<code>tmux</code>, the in-flight ATMOSphere build, and 20+ npm MCP
+<code>tmux</code>, the in-flight project build, and 20+ npm MCP
 server processes. Likely cumulative cgroup pressure + external
 watchdog.</p>
 <p><strong>Mandatory safeguards effective 2026-04-28</strong> (full text
@@ -1735,7 +1735,7 @@ suspected §12 incident. <code>mem_limit</code> is per-container, not
 per-user-slice — operator MUST cap Σ <code>mem_limit</code> ≤ physical
 RAM − user-session overhead.</li>
 <li>20+ npm-spawned MCP server processes are a known memory multiplier;
-stop non-essential MCPs before heavy ATMOSphere work.</li>
+stop non-essential MCPs before heavy project work.</li>
 <li><strong>Investigation: Docker/Podman as session-loss
 vector.</strong> Per-container cgroups don’t prevent cumulative
 user-slice pressure; conmon
@@ -1743,7 +1743,7 @@ user-slice pressure; conmon
 warnings preceded the 18:36:35 SIGKILL by 6 min — likely
 correlated.</li>
 </ol>
-<p>This directive applies to every owned ATMOSphere repo and every
+<p>This directive applies to every owned repo and every
 HelixQA dependency. Non-compliance is a Constitution §12 violation.</p>
 <h2
 id="mandatory-12.6-memory-budget-ceiling-60-maximum-user-mandate-2026-04-30">MANDATORY
@@ -2607,7 +2607,7 @@ executed from the root of the cloned (added) repository - only if in it
 is Upstreams or upstreams directory present with bash script files
 (recipes) for all repository’s upstreams!”</em></p>
 </blockquote>
-<p>Every clone / add of a Git repository under HelixCode MUST be
+<p>Every clone / add of a Git repository under the project MUST be
 followed by <code>install_upstreams</code> invocation from the
 repository’s root IF its tree contains <code>upstreams/</code> (or
 legacy <code>Upstreams/</code> per CONST-052 transition) populated with
@@ -5842,14 +5842,14 @@ and committed artifacts are the fresh, whole outputs. Propagation gate
 <code>11.4.121</code>). Non-compliance is a release blocker.</p>
 <p><strong>Canonical authority:</strong> constitution submodule
 <code>Constitution.md</code> §11.4.121.</p>
-<!-- LVA-030: Lava parent-project inheritance pointers (per §6.AD / §6.F) -->
+<!-- LVA-030: Parent-project inheritance pointers (per §6.AD / §6.F) -->
 <h2 id="inherited-from-constitutionagents.md">INHERITED FROM
 constitution/AGENTS.md</h2>
 <p>All rules in <code>constitution/AGENTS.md</code> (and the
 <code>constitution/Constitution.md</code> it references) apply
 unconditionally. This file’s rules below extend them — they MUST NOT
 weaken any inherited rule. See parent root <code>CLAUDE.md</code> §6.AD
-for the Lava-specific incorporation context (29th §6.L cycle,
+for the project-specific incorporation context (29th §6.L cycle,
 2026-05-14) and §6.AD-debt for the implementation-gap inventory. Use
 <code>constitution/find_constitution.sh</code> from the parent project
 root to resolve the absolute path of the submodule from any nested
@@ -5865,7 +5865,7 @@ process INSIDE a podman/docker container managed by
 Containers-submodule code that runs on the host. The Containers
 submodule’s <code>pkg/runtime/</code> (rootless podman/docker
 auto-detection) brings the container up; <code>pkg/emulator/</code>
-orchestrates the AVD lifecycle inside it. Lava-side
+orchestrates the AVD lifecycle inside it. project-side
 <code>scripts/run-emulator-tests.sh</code> is thin glue forwarding to
 the Containers CLI. The container-bound path is the gate — host-direct
 emulators are permitted for workstation iteration only. §6.X-debt tracks

@@ -239,8 +239,7 @@
 <body>
 <h2 id="inherited-from-helix-constitution">INHERITED FROM Helix
 Constitution</h2>
-<p>This module is a submodule of a Helix-family project (e.g. HelixCode,
-HelixAgent, ATMOSphere) that includes the Helix Constitution submodule
+<p>This module is a submodule of a consuming project that includes the Helix Constitution submodule
 at the parent’s <code>constitution/</code> path. All rules in
 <code>constitution/CLAUDE.md</code> and the
 <code>constitution/Constitution.md</code> it references (universal
@@ -256,22 +255,21 @@ nested depth using its <code>find_constitution.sh</code> helper.</p>
 href="https://github.com/HelixDevelopment/HelixConstitution"
 class="uri">https://github.com/HelixDevelopment/HelixConstitution</a></p>
 <hr />
-<h1 id="helixcode-constitution">HelixCode Constitution</h1>
+<h1 id="helixcode-constitution">Project Constitution</h1>
 <blockquote>
 <p><strong>Inherits from:</strong>
 <code>HelixConstitution/Constitution.md</code> — all universal clauses
 in that document apply unconditionally. Rules below extend or tighten
 them; they MUST NOT weaken any inherited clause.</p>
 </blockquote>
-<h2 id="helixcode-project-constitution">HelixCode Project
-Constitution</h2>
+<h2 id="helixcode-project-constitution">Project Constitution</h2>
 <p><strong>Version</strong>: 1.0.0 <strong>Effective Date</strong>:
 2026-04-30 <strong>Scope</strong>: This Constitution applies to
-HelixCode and ALL its submodules <strong>Authority</strong>: Cascaded
-from HelixAgent root governance with HelixCode-specific addenda</p>
+the project and ALL its submodules <strong>Authority</strong>: Cascaded
+from the parent project’s root governance with project-specific addenda</p>
 <hr />
 <h2 id="preamble">Preamble</h2>
-<p>HelixCode is an enterprise-grade distributed AI development platform.
+<p>The project is an enterprise-grade distributed AI development platform.
 This Constitution establishes the non-negotiable rules that govern all
 development, testing, deployment, and maintenance activities within the
 project. Every contributor, agent, and automated process MUST adhere to
@@ -568,9 +566,9 @@ id="const-035-end-user-usability-mandate-2026-04-29-strengthening">CONST-035:
 End-User Usability Mandate (2026-04-29 Strengthening)</h2>
 <p>A test or Challenge that PASSES is a CLAIM that the tested behavior
 <strong>works for the end user of the product</strong>.</p>
-<p>The HelixAgent project has repeatedly hit the failure mode where
+<p>The parent project has repeatedly hit the failure mode where
 every test ran green AND every Challenge reported PASS, yet most product
-features did not actually work. This MUST NOT recur in HelixCode.</p>
+features did not actually work. This MUST NOT recur in the project.</p>
 <p>Every PASS result MUST guarantee: a. <strong>Quality</strong> -
 correct behavior under real inputs, edge cases, concurrency b.
 <strong>Completion</strong> - wired end-to-end with no stub/placeholder
@@ -687,7 +685,7 @@ green” or that lag &gt;60s behind reality violate this rule.</p>
 <h2
 id="const-040-all-providers-and-models-integration-mandate">CONST-040:
 All Providers and Models Integration Mandate</h2>
-<p><strong>Rule</strong>: HelixCode MUST integrate with ALL providers
+<p><strong>Rule</strong>: The project MUST integrate with ALL providers
 and models that LLMsVerifier supports, subject only to: 1. The provider
 being explicitly disabled in configuration (<code>enabled: false</code>)
 2. The API key being absent and the provider requiring one 3. The
@@ -721,7 +719,7 @@ Mandate</h2>
 basic model listing to cover ALL capability dimensions:</p>
 <ol type="1">
 <li><p><strong>MCP (Model Context Protocol)</strong>: The verifier MUST
-report which models support MCP tool calling. HelixCode’s MCP subsystem
+report which models support MCP tool calling. The project’s MCP subsystem
 MUST consult verifier capability flags before selecting a model for
 tool-use tasks.</p></li>
 <li><p><strong>LSP (Language Server Protocol)</strong>: The verifier
@@ -809,7 +807,7 @@ owned-by-us repo’s three governance files.</p>
 2. Challenge demonstrating the need 3. 72-hour review period 4. Approval
 by project architect 5. Update to all submodule governance files</p>
 <hr />
-<p><em>This Constitution is the supreme law of the HelixCode project. No
+<p><em>This Constitution is the supreme law of the project. No
 code, test, or process may contradict it.</em></p>
 <h2 id="article-xi-11.9-anti-bluff-forensic-anchor-cascaded">Article XI
 §11.9 — Anti-Bluff Forensic Anchor (Cascaded)</h2>
@@ -1272,7 +1270,7 @@ executed from the root of the cloned (added) repository - only if in it
 is Upstreams or upstreams directory present with bash script files
 (recipes) for all repository’s upstreams!”</em></p>
 </blockquote>
-<p>Every clone / add of a Git repository under HelixCode MUST be
+<p>Every clone / add of a Git repository under the project MUST be
 followed by <code>install_upstreams</code> invocation from the
 repository’s root IF its tree contains <code>upstreams/</code> (or
 legacy <code>Upstreams/</code> per CONST-052 transition) populated with
@@ -4195,14 +4193,14 @@ and committed artifacts are the fresh, whole outputs. Propagation gate
 <code>11.4.121</code>). Non-compliance is a release blocker.</p>
 <p><strong>Canonical authority:</strong> constitution submodule
 <code>Constitution.md</code> §11.4.121.</p>
-<!-- LVA-030: Lava parent-project inheritance pointers (per §6.AD / §6.F) -->
+<!-- LVA-030: Parent-project inheritance pointers (per §6.AD / §6.F) -->
 <h2 id="inherited-from-constitutionconstitution.md">INHERITED FROM
 constitution/Constitution.md</h2>
 <p>All rules in <code>constitution/Constitution.md</code> (and the
 <code>constitution/Constitution.md</code> it references) apply
 unconditionally. This file’s rules below extend them — they MUST NOT
 weaken any inherited rule. See parent root <code>CLAUDE.md</code> §6.AD
-for the Lava-specific incorporation context (29th §6.L cycle,
+for the project-specific incorporation context (29th §6.L cycle,
 2026-05-14) and §6.AD-debt for the implementation-gap inventory. Use
 <code>constitution/find_constitution.sh</code> from the parent project
 root to resolve the absolute path of the submodule from any nested
@@ -4218,7 +4216,7 @@ process INSIDE a podman/docker container managed by
 Containers-submodule code that runs on the host. The Containers
 submodule’s <code>pkg/runtime/</code> (rootless podman/docker
 auto-detection) brings the container up; <code>pkg/emulator/</code>
-orchestrates the AVD lifecycle inside it. Lava-side
+orchestrates the AVD lifecycle inside it. project-side
 <code>scripts/run-emulator-tests.sh</code> is thin glue forwarding to
 the Containers CLI. The container-bound path is the gate — host-direct
 emulators are permitted for workstation iteration only. §6.X-debt tracks

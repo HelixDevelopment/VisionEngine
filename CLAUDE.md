@@ -1,6 +1,6 @@
 ## INHERITED FROM Helix Constitution
 
-This module is a submodule of an ATMOSphere-family project that
+This module is a submodule of the consuming project that
 includes the Helix Constitution submodule at the parent's
 `constitution/` path. All rules in `constitution/CLAUDE.md` and the
 `constitution/Constitution.md` it references (universal anti-bluff
@@ -18,7 +18,7 @@ Canonical reference: <https://github.com/HelixDevelopment/HelixConstitution>
 
 ---
 
-# CLAUDE.md - HelixCode AI Agent Manual
+# CLAUDE.md - Project AI Agent Manual
 
 ## INHERITED FROM HelixConstitution/CLAUDE.md
 
@@ -28,18 +28,18 @@ Rules below MUST NOT weaken any inherited clause.
 
 
 
-## HelixCode - AI Agent Operating Manual
+## The Project - AI Agent Operating Manual
 
 **Version**: 1.0.0
 **Date**: 2026-04-30
-**Scope**: This document guides AI agents working on the HelixCode codebase
-**Authority**: Cascaded from HelixAgent root `CLAUDE.md` with HelixCode-specific addenda
+**Scope**: This document guides AI agents working on the project codebase
+**Authority**: Cascaded from the parent project's root `CLAUDE.md` with project-specific addenda
 
 ---
 
 ## 1. Agent Identity & Purpose
 
-You are an AI agent working on **HelixCode**, an enterprise-grade distributed AI development platform. Your work directly impacts the quality and usability of a production system.
+You are an AI agent working on **the project**, an enterprise-grade distributed AI development platform. Your work directly impacts the quality and usability of a production system.
 
 **Your mandate**: Write real, working, tested code. No simulations. No placeholders. No "for now" implementations. Every feature you implement MUST actually work when a user invokes it.
 
@@ -54,7 +54,7 @@ This `CLAUDE.md` sits alongside several other agent/governance manuals at the re
 
 ## 2. Universal Mandatory Rules (Non-Negotiable)
 
-These rules cascade from the HelixCode Constitution. They are permanent and apply to every task.
+These rules cascade from the project Constitution. They are permanent and apply to every task.
 
 ### Rule 1: No CI/CD Pipelines
 No `.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile`, `.travis.yml`, `.circleci/`, or any automated pipeline. All builds and tests run manually or via Makefile/script targets.
@@ -103,7 +103,7 @@ No force push, force-with-lease push, history rewrite, branch deletion of `main`
 
 ---
 
-## 3. HelixCode-Specific Architecture
+## 3. Project-Specific Architecture
 
 ### 3.1 Technology Stack
 - **Language**: Go — root meta-repo on `go 1.25.2`, inner Go application (`helix_code/`) on `go 1.26`. Keep both modules current; do not downgrade.
@@ -263,7 +263,7 @@ make container-release          # full release in container
 
 **Single-test invocation** (inner module):
 ```bash
-cd HelixCode
+cd <project_root>
 go test -v -run TestJWTGenerate ./internal/auth                          # single unit test
 go test -v -tags=integration -run TestAPI_CreateTask ./tests/integration/...
 go test -v -count=1 ./internal/verifier/...                              # disable test cache
@@ -573,12 +573,12 @@ func (p *SSHWorkerPool) AddWorker(ctx context.Context, w *SSHWorker) error {
 
 ## 7. Working with Submodules
 
-HelixCode has 80+ submodules. When working with them:
+The project has 80+ submodules. When working with them:
 
 1. **Check governance**: Does the submodule have Constitution.md / CLAUDE.md / AGENTS.md?
 2. **Add if missing**: Create governance files referencing parent
 3. **Verify builds**: Does the submodule actually compile?
-4. **Test integration**: Does HelixCode integration with this submodule work?
+4. **Test integration**: Does the project's integration with this submodule work?
 
 ---
 
@@ -608,10 +608,10 @@ The full command catalog lives in **§3.4 Build & Test Commands**. The block bel
 
 ```bash
 # 1. Compiles?
-cd HelixCode && make verify-compile
+cd <project_root> && make verify-compile
 
 # 2. Unit tests (mocks allowed only here)
-cd HelixCode && go test -count=1 ./...
+cd <project_root> && go test -count=1 ./...
 
 # 3. Anti-bluff scan
 grep -rn "simulated\|for now\|TODO implement\|placeholder" \
@@ -641,7 +641,7 @@ Every model displayed to users MUST be verified by LLMsVerifier within 24h. Inte
 Model status MUST reflect verifier state within 60s. Poll interval ≤ 60s if push unavailable.
 
 ### CONST-039: All Providers Integration Mandate
-HelixCode MUST integrate with all verifier-supported providers: OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, xAI, OpenRouter, Ollama, Llama.cpp.
+The project MUST integrate with all verifier-supported providers: OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, xAI, OpenRouter, Ollama, Llama.cpp.
 
 ### CONST-040: Capability Integration Mandate
 MCP, LSP, ACP, Embedding, RAG, Skills, and Plugins capability flags MUST be sourced from verifier `VerificationResult`. NO hardcoded capability flags.
@@ -682,7 +682,7 @@ non-negotiable and overrides any other instruction.
 | Upstream (this module imports) | none |
 | Downstream (these import this module) | HelixQA |
 
-*Siblings* means other project-owned modules at the HelixAgent repo root. The root HelixAgent app and external systems are not listed here — the list above is intentionally scoped to module-to-module seams, because drift *between* sibling modules is where the "tests pass, product broken" class of bug most often lives. See root `CLAUDE.md` for the rules that keep these seams contract-tested.
+*Siblings* means other project-owned modules at the parent project repo root. The root project app and external systems are not listed here — the list above is intentionally scoped to module-to-module seams, because drift *between* sibling modules is where the "tests pass, product broken" class of bug most often lives. See root `CLAUDE.md` for the rules that keep these seams contract-tested.
 
 <!-- BEGIN host-power-management addendum (CONST-033) -->
 
@@ -932,7 +932,7 @@ Non-compliance is a release blocker regardless of context.
 `user@1000.service` was again SIGKILLed (`status=9/KILL`), this time
 WITHOUT a kernel OOM kill (systemd-oomd inactive, `MemoryMax=infinity`)
 — a different vector than Incident #1. Cascade killed `claude`,
-`tmux`, the in-flight ATMOSphere build, and 20+ npm MCP server
+`tmux`, the in-flight project build, and 20+ npm MCP server
 processes. Likely cumulative cgroup pressure + external watchdog.
 
 **Mandatory safeguards effective 2026-04-28** (full text in parent
@@ -949,13 +949,13 @@ processes. Likely cumulative cgroup pressure + external watchdog.
    per-user-slice — operator MUST cap Σ `mem_limit` ≤ physical RAM
    − user-session overhead.
 4. 20+ npm-spawned MCP server processes are a known memory multiplier;
-   stop non-essential MCPs before heavy ATMOSphere work.
+   stop non-essential MCPs before heavy project work.
 5. **Investigation: Docker/Podman as session-loss vector.** Per-container
    cgroups don't prevent cumulative user-slice pressure; conmon
    `Failed to open cgroups file: /sys/fs/cgroup/memory.events`
    warnings preceded the 18:36:35 SIGKILL by 6 min — likely correlated.
 
-This directive applies to every owned ATMOSphere repo and every
+This directive applies to every owned repo and every
 HelixQA dependency. Non-compliance is a Constitution §12 violation.
 
 
@@ -1469,7 +1469,7 @@ CONST-055 is the **enforcement engine** for every other §11.4.x and CONST-NNN r
 
 > Verbatim user mandate (2026-05-15): *"Every Submodule or Git repository we add or clone MUST BE upstreams installed using Upstreamable utility which MUST BE available through exported paths of the host system (in .bashrc or .zhrc) using install_upstreams command executed from the root of the cloned (added) repository - only if in it is Upstreams or upstreams directory present with bash script files (recipes) for all repository's upstreams!"*
 
-Every clone / add of a Git repository under HelixCode MUST be followed by `install_upstreams` invocation from the repository's root IF its tree contains `upstreams/` (or legacy `Upstreams/` per CONST-052 transition) populated with `*.sh` recipe files. The utility (installed on operator's `PATH` via `.bashrc`/`.zshrc`; implementation in the constitution submodule's `install_upstreams.sh` — already supports BOTH directory names since constitution commit `45d3678`) reads the recipe files, configures every declared upstream as a named git remote, and fans out `origin` push URLs.
+Every clone / add of a Git repository under the project MUST be followed by `install_upstreams` invocation from the repository's root IF its tree contains `upstreams/` (or legacy `Upstreams/` per CONST-052 transition) populated with `*.sh` recipe files. The utility (installed on operator's `PATH` via `.bashrc`/`.zshrc`; implementation in the constitution submodule's `install_upstreams.sh` — already supports BOTH directory names since constitution commit `45d3678`) reads the recipe files, configures every declared upstream as a named git remote, and fans out `origin` push URLs.
 
 Skipping the invocation when `upstreams/` is present silently breaks §2.1 (multi-upstream push is the norm) — the next push lands on only one upstream. Gate `CM-INSTALL-UPSTREAMS-ON-CLONE` + paired mutation. Automation: the future `incorporate-submodule` per CONST-054 auto-invokes; manual invocation supported. Pre-commit check: `git remote -v | grep -c push` reports expected count.
 
@@ -2449,11 +2449,11 @@ Cascade reference — see constitution submodule `Constitution.md` §11.4.121 fo
 
 **Canonical authority:** constitution submodule `Constitution.md` §11.4.121.
 
-<!-- LVA-030: Lava parent-project inheritance pointers (per §6.AD / §6.F) -->
+<!-- LVA-030: Parent-project inheritance pointers (per §6.AD / §6.F) -->
 
 ## INHERITED FROM constitution/CLAUDE.md
 
-All rules in `constitution/CLAUDE.md` (and the `constitution/Constitution.md` it references) apply unconditionally. This file's rules below extend them — they MUST NOT weaken any inherited rule. See parent root `CLAUDE.md` §6.AD for the Lava-specific incorporation context (29th §6.L cycle, 2026-05-14) and §6.AD-debt for the implementation-gap inventory. Use `constitution/find_constitution.sh` from the parent project root to resolve the absolute path of the submodule from any nested location.
+All rules in `constitution/CLAUDE.md` (and the `constitution/Constitution.md` it references) apply unconditionally. This file's rules below extend them — they MUST NOT weaken any inherited rule. See parent root `CLAUDE.md` §6.AD for the project-specific incorporation context (29th §6.L cycle, 2026-05-14) and §6.AD-debt for the implementation-gap inventory. Use `constitution/find_constitution.sh` from the parent project root to resolve the absolute path of the submodule from any nested location.
 
 ## §6.R — No-Hardcoding Mandate (inherited 2026-06-09, per §6.F, LVA-030)
 
@@ -2461,11 +2461,11 @@ See root `/CLAUDE.md` §6.R. No connection address, port, header field name, cre
 
 ## §6.S — Continuation Document Maintenance Mandate (inherited 2026-06-09, per §6.F, LVA-030)
 
-See root `/CLAUDE.md` §6.S. The file `docs/CONTINUATION.md` (in the parent Lava repo) is the single-file source-of-truth handoff document for resuming work across any CLI session. Every commit that changes phase status, lands a new spec/plan, bumps a submodule pin, ships a release artifact, discovers/resolves a known issue, or implements an operator scope directive MUST update `docs/CONTINUATION.md` in the SAME COMMIT. The §0 "Last updated" line MUST track HEAD. Submodule MAY add stricter rules but MUST NOT relax this clause.
+See root `/CLAUDE.md` §6.S. The file `docs/CONTINUATION.md` (in the parent project repo) is the single-file source-of-truth handoff document for resuming work across any CLI session. Every commit that changes phase status, lands a new spec/plan, bumps a submodule pin, ships a release artifact, discovers/resolves a known issue, or implements an operator scope directive MUST update `docs/CONTINUATION.md` in the SAME COMMIT. The §0 "Last updated" line MUST track HEAD. Submodule MAY add stricter rules but MUST NOT relax this clause.
 
 ## §6.X — Container-Submodule Emulator Wiring Mandate (inherited 2026-06-09, per §6.F, LVA-030)
 
-See root `/CLAUDE.md` §6.X. Every Android emulator instance the project depends on for testing MUST execute its emulator process INSIDE a podman/docker container managed by `Submodules/Containers/`, NOT be host-direct-launched by Containers-submodule code that runs on the host. The Containers submodule's `pkg/runtime/` (rootless podman/docker auto-detection) brings the container up; `pkg/emulator/` orchestrates the AVD lifecycle inside it. Lava-side `scripts/run-emulator-tests.sh` is thin glue forwarding to the Containers CLI. The container-bound path is the gate — host-direct emulators are permitted for workstation iteration only. §6.X-debt tracks the wiring implementation owed to `Submodules/Containers/`. This submodule MAY add stricter rules but MUST NOT relax.
+See root `/CLAUDE.md` §6.X. Every Android emulator instance the project depends on for testing MUST execute its emulator process INSIDE a podman/docker container managed by `Submodules/Containers/`, NOT be host-direct-launched by Containers-submodule code that runs on the host. The Containers submodule's `pkg/runtime/` (rootless podman/docker auto-detection) brings the container up; `pkg/emulator/` orchestrates the AVD lifecycle inside it. project-side `scripts/run-emulator-tests.sh` is thin glue forwarding to the Containers CLI. The container-bound path is the gate — host-direct emulators are permitted for workstation iteration only. §6.X-debt tracks the wiring implementation owed to `Submodules/Containers/`. This submodule MAY add stricter rules but MUST NOT relax.
 
 ## §11.4.103 — Continuous parallel-stream working routine (cascaded from constitution submodule §11.4.103)
 

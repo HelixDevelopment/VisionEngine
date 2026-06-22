@@ -57,7 +57,7 @@ var ErrBackendVerificationNotImplemented = fmt.Errorf("visionengine: EnsureReady
 //
 // Until SSH-backed remote-process termination is wired into
 // this package (it requires SSH credentials that the consuming
-// HelixCode runtime holds but VisionPool does not), callers
+// project's runtime holds but VisionPool does not), callers
 // MUST explicitly terminate remote llama-server / Ollama-
 // server processes themselves. Shutdown also emits a WARN log
 // line per pool documenting the orphan state.

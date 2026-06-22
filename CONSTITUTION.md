@@ -1,7 +1,6 @@
 ## INHERITED FROM Helix Constitution
 
-This module is a submodule of a Helix-family project (e.g.
-HelixCode, HelixAgent, ATMOSphere) that includes the Helix
+This module is a submodule of a consuming project that includes the Helix
 Constitution submodule at the parent's `constitution/` path. All
 rules in `constitution/CLAUDE.md` and the
 `constitution/Constitution.md` it references (universal anti-bluff
@@ -19,24 +18,24 @@ Canonical reference: <https://github.com/HelixDevelopment/HelixConstitution>
 
 ---
 
-# HelixCode Constitution
+# Project Constitution
 
 > **Inherits from:** `HelixConstitution/Constitution.md` — all universal
 > clauses in that document apply unconditionally. Rules below extend or
 > tighten them; they MUST NOT weaken any inherited clause.
 
-## HelixCode Project Constitution
+## Project Constitution
 
 **Version**: 1.0.0
 **Effective Date**: 2026-04-30
-**Scope**: This Constitution applies to HelixCode and ALL its submodules
-**Authority**: Cascaded from HelixAgent root governance with HelixCode-specific addenda
+**Scope**: This Constitution applies to the project and ALL its submodules
+**Authority**: Cascaded from the parent project's root governance with project-specific addenda
 
 ---
 
 ## Preamble
 
-HelixCode is an enterprise-grade distributed AI development platform. This Constitution establishes the non-negotiable rules that govern all development, testing, deployment, and maintenance activities within the project. Every contributor, agent, and automated process MUST adhere to these rules. No exceptions.
+The project is an enterprise-grade distributed AI development platform. This Constitution establishes the non-negotiable rules that govern all development, testing, deployment, and maintenance activities within the project. Every contributor, agent, and automated process MUST adhere to these rules. No exceptions.
 
 ---
 
@@ -337,7 +336,7 @@ Public APIs maintain backward compatibility within major versions. Deprecation r
 
 A test or Challenge that PASSES is a CLAIM that the tested behavior **works for the end user of the product**.
 
-The HelixAgent project has repeatedly hit the failure mode where every test ran green AND every Challenge reported PASS, yet most product features did not actually work. This MUST NOT recur in HelixCode.
+The parent project has repeatedly hit the failure mode where every test ran green AND every Challenge reported PASS, yet most product features did not actually work. This MUST NOT recur in the project.
 
 Every PASS result MUST guarantee:
 a. **Quality** - correct behavior under real inputs, edge cases, concurrency
@@ -431,7 +430,7 @@ BY AN END USER IN THE SAME BUILD.
 
 ## CONST-040: All Providers and Models Integration Mandate
 
-**Rule**: HelixCode MUST integrate with ALL providers and models that LLMsVerifier supports, subject only to:
+**Rule**: The project MUST integrate with ALL providers and models that LLMsVerifier supports, subject only to:
 1. The provider being explicitly disabled in configuration (`enabled: false`)
 2. The API key being absent and the provider requiring one
 3. The provider being marked `deprecated` in the verifier database
@@ -462,7 +461,7 @@ BY AN END USER IN THE SAME BUILD.
 
 **Rule**: LLMsVerifier integration SHALL extend beyond basic model listing to cover ALL capability dimensions:
 
-1. **MCP (Model Context Protocol)**: The verifier MUST report which models support MCP tool calling. HelixCode's MCP subsystem MUST consult verifier capability flags before selecting a model for tool-use tasks.
+1. **MCP (Model Context Protocol)**: The verifier MUST report which models support MCP tool calling. The project's MCP subsystem MUST consult verifier capability flags before selecting a model for tool-use tasks.
 
 2. **LSP (Language Server Protocol)**: The verifier MUST report code-analysis capabilities. Models without `code_analysis` capability MUST NOT be selected for refactoring or debugging tasks.
 
@@ -523,7 +522,7 @@ Constitution amendments require:
 
 ---
 
-*This Constitution is the supreme law of the HelixCode project. No code, test, or process may contradict it.*
+*This Constitution is the supreme law of the project. No code, test, or process may contradict it.*
 
 ## Article XI §11.9 — Anti-Bluff Forensic Anchor (Cascaded)
 
@@ -720,7 +719,7 @@ CONST-055 is the **enforcement engine** for every other §11.4.x and CONST-NNN r
 
 > Verbatim user mandate (2026-05-15): *"Every Submodule or Git repository we add or clone MUST BE upstreams installed using Upstreamable utility which MUST BE available through exported paths of the host system (in .bashrc or .zhrc) using install_upstreams command executed from the root of the cloned (added) repository - only if in it is Upstreams or upstreams directory present with bash script files (recipes) for all repository's upstreams!"*
 
-Every clone / add of a Git repository under HelixCode MUST be followed by `install_upstreams` invocation from the repository's root IF its tree contains `upstreams/` (or legacy `Upstreams/` per CONST-052 transition) populated with `*.sh` recipe files. The utility (installed on operator's `PATH` via `.bashrc`/`.zshrc`; implementation in the constitution submodule's `install_upstreams.sh` — already supports BOTH directory names since constitution commit `45d3678`) reads the recipe files, configures every declared upstream as a named git remote, and fans out `origin` push URLs.
+Every clone / add of a Git repository under the project MUST be followed by `install_upstreams` invocation from the repository's root IF its tree contains `upstreams/` (or legacy `Upstreams/` per CONST-052 transition) populated with `*.sh` recipe files. The utility (installed on operator's `PATH` via `.bashrc`/`.zshrc`; implementation in the constitution submodule's `install_upstreams.sh` — already supports BOTH directory names since constitution commit `45d3678`) reads the recipe files, configures every declared upstream as a named git remote, and fans out `origin` push URLs.
 
 Skipping the invocation when `upstreams/` is present silently breaks §2.1 (multi-upstream push is the norm) — the next push lands on only one upstream. Gate `CM-INSTALL-UPSTREAMS-ON-CLONE` + paired mutation. Automation: the future `incorporate-submodule` per CONST-054 auto-invokes; manual invocation supported. Pre-commit check: `git remote -v | grep -c push` reports expected count.
 
@@ -1506,15 +1505,15 @@ Cascade reference — see constitution submodule `Constitution.md` §11.4.121 fo
 
 **Canonical authority:** constitution submodule `Constitution.md` §11.4.121.
 
-<!-- LVA-030: Lava parent-project inheritance pointers (per §6.AD / §6.F) -->
+<!-- LVA-030: Parent-project inheritance pointers (per §6.AD / §6.F) -->
 
 ## INHERITED FROM constitution/Constitution.md
 
-All rules in `constitution/Constitution.md` (and the `constitution/Constitution.md` it references) apply unconditionally. This file's rules below extend them — they MUST NOT weaken any inherited rule. See parent root `CLAUDE.md` §6.AD for the Lava-specific incorporation context (29th §6.L cycle, 2026-05-14) and §6.AD-debt for the implementation-gap inventory. Use `constitution/find_constitution.sh` from the parent project root to resolve the absolute path of the submodule from any nested location.
+All rules in `constitution/Constitution.md` (and the `constitution/Constitution.md` it references) apply unconditionally. This file's rules below extend them — they MUST NOT weaken any inherited rule. See parent root `CLAUDE.md` §6.AD for the project-specific incorporation context (29th §6.L cycle, 2026-05-14) and §6.AD-debt for the implementation-gap inventory. Use `constitution/find_constitution.sh` from the parent project root to resolve the absolute path of the submodule from any nested location.
 
 ## §6.X — Container-Submodule Emulator Wiring Mandate (inherited 2026-06-09, per §6.F, LVA-030)
 
-See root `/CLAUDE.md` §6.X. Every Android emulator instance the project depends on for testing MUST execute its emulator process INSIDE a podman/docker container managed by `Submodules/Containers/`, NOT be host-direct-launched by Containers-submodule code that runs on the host. The Containers submodule's `pkg/runtime/` (rootless podman/docker auto-detection) brings the container up; `pkg/emulator/` orchestrates the AVD lifecycle inside it. Lava-side `scripts/run-emulator-tests.sh` is thin glue forwarding to the Containers CLI. The container-bound path is the gate — host-direct emulators are permitted for workstation iteration only. §6.X-debt tracks the wiring implementation owed to `Submodules/Containers/`. This submodule MAY add stricter rules but MUST NOT relax.
+See root `/CLAUDE.md` §6.X. Every Android emulator instance the project depends on for testing MUST execute its emulator process INSIDE a podman/docker container managed by `Submodules/Containers/`, NOT be host-direct-launched by Containers-submodule code that runs on the host. The Containers submodule's `pkg/runtime/` (rootless podman/docker auto-detection) brings the container up; `pkg/emulator/` orchestrates the AVD lifecycle inside it. project-side `scripts/run-emulator-tests.sh` is thin glue forwarding to the Containers CLI. The container-bound path is the gate — host-direct emulators are permitted for workstation iteration only. §6.X-debt tracks the wiring implementation owed to `Submodules/Containers/`. This submodule MAY add stricter rules but MUST NOT relax.
 
 ## §11.4.103 — Continuous parallel-stream working routine (cascaded from constitution submodule §11.4.103)
 
