@@ -16,10 +16,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Verify OpenCV installation
 RUN pkg-config --modversion opencv4 || pkg-config --modversion opencv
 
+# DS-0002: create an unprivileged user that owns the build workspace + Go caches.
+# The build/test runner needs write access to /app and the Go module/build cache
+# but never needs root at runtime.
+RUN groupadd --system --gid 10001 vision \
+    && useradd --system --uid 10001 --gid 10001 --create-home --home-dir /home/vision vision \
+    && mkdir -p /app \
+    && chown -R 10001:10001 /app
+ENV GOCACHE=/home/vision/.cache/go-build \
+    GOMODCACHE=/home/vision/go/pkg/mod
+USER 10001:10001
+
 WORKDIR /app
-COPY go.mod go.sum ./
+COPY --chown=10001:10001 go.mod go.sum ./
 RUN go mod download
-COPY . .
+COPY --chown=10001:10001 . .
 
 # Build with vision tag
 RUN go build -tags vision ./...
