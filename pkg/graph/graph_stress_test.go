@@ -191,6 +191,22 @@ func TestStress_ConcurrentExport(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	// Observable post-join assertion: 60 concurrent exporters read the graph
+	// while it was being exported; no export may corrupt or lose graph state.
+	// One final export must still reflect the full seeded topology
+	// (100 screens, 99 transitions) and all three export formats must
+	// succeed and be non-empty over that complete state.
+	snap := g.Export()
+	assert.Len(t, snap.Screens, 100, "all 100 seeded screens must survive concurrent export")
+	assert.Len(t, snap.Transitions, 99, "all 99 seeded transitions must survive concurrent export")
+	assert.Len(t, g.Screens(), 100, "live screen count must match seeded state after concurrent export")
+	assert.Len(t, g.Transitions(), 99, "live transition count must match seeded state after concurrent export")
+	jsonOut, err := ExportJSON(g)
+	require.NoError(t, err, "final ExportJSON must succeed on the post-concurrency graph")
+	assert.NotEmpty(t, jsonOut, "final ExportJSON must be non-empty")
+	assert.NotEmpty(t, ExportDOT(g), "final ExportDOT must be non-empty")
+	assert.NotEmpty(t, ExportMermaid(g), "final ExportMermaid must be non-empty")
 }
 
 func TestStress_500Nodes_FullCoverage(t *testing.T) {
