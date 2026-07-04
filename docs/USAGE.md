@@ -80,7 +80,7 @@ import "digital.vasic.visionengine/pkg/remote"
 
 deployer := remote.NewDeployer(remote.Config{
     Host:  "thinker.local",
-    User:  "milosvasic",
+    User:  "<your-username>",
     Model: "llava:7b",        // default
     Port:  22,                 // SSH port
     OllamaPort: 11434,        // Ollama API port

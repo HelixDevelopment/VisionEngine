@@ -18,603 +18,200 @@ Canonical reference: <https://github.com/HelixDevelopment/HelixConstitution>
 
 ---
 
-# CLAUDE.md - Project AI Agent Manual
+# CLAUDE.md — VisionEngine AI Agent Manual
 
 ## INHERITED FROM constitution/CLAUDE.md
 
 All rules in `constitution/CLAUDE.md` (and the `constitution/Constitution.md` it references) apply unconditionally. This file's rules below extend them — they MUST NOT weaken any inherited rule. Use `constitution/find_constitution.sh` from the parent project root to resolve the absolute path of the submodule from any nested location.
 
-## The Project - AI Agent Operating Manual
+## VisionEngine — AI Agent Operating Manual
 
-**Version**: 1.0.0
-**Date**: 2026-04-30
-**Scope**: This document guides AI agents working on the project codebase
-**Authority**: Cascaded from the parent project's root `CLAUDE.md` with project-specific addenda
+**Version**: 0.1.0
+**Date**: 2026-07-05 (last revision of this document)
+**Scope**: This document guides AI agents working on this module's own codebase.
+**Authority**: Cascaded from the parent project's root `CLAUDE.md`, with module-specific addenda below.
 
----
-
-## 1. Agent Identity & Purpose
-
-You are an AI agent working on **the project**, an enterprise-grade distributed AI development platform. Your work directly impacts the quality and usability of a production system.
-
-**Your mandate**: Write real, working, tested code. No simulations. No placeholders. No "for now" implementations. Every feature you implement MUST actually work when a user invokes it.
-
-### 1.1 Peer Governance Documents (keep in sync)
-This `CLAUDE.md` sits alongside several other agent/governance manuals at the repo root. They overlap and must remain consistent:
-- `CONSTITUTION.md` — source of truth for all mandates (CONST-033, CONST-035, CONST-036–040, Article XI §11.9). When this file conflicts with the Constitution, the Constitution wins.
-- `AGENTS.md` — generic agent manual (40 KB; mirror anti-bluff rules here).
-- `CRUSH.md`, `QWEN.md` — sibling agent manuals for other CLI tools. Cascade rule changes to all of them.
-- `helix_code/CLAUDE.md`, `helix_qa/CLAUDE.md`, `challenges/CLAUDE.md` — submodule-scoped manuals; this root file inherits from them and they inherit from this one.
+> **Versioning note**: this module ships no `VERSION` file and `go.mod` carries
+> no semantic-version directive. The only concrete version marker found in
+> the repository is `CHANGELOG.md`'s `[0.1.0] - 2026-03-19` entry, so `0.1.0`
+> is used here (and in `AGENTS.md`) for consistency. Treat it as the best
+> available signal, not an authoritative release tag, until a canonical
+> `VERSION` file is introduced.
 
 ---
 
-## 3. Project-Specific Architecture
+## 1. Module Identity & Purpose
 
-### 3.1 Technology Stack
-- **Language**: Go — root meta-repo on `go 1.25.2`, inner Go application (`helix_code/`) on `go 1.26`. Keep both modules current; do not downgrade.
-- **Module IDs**: root `dev.helix.code` (thin), inner `dev.helix.code` (full app + transitive deps).
-- **HTTP / API**: Gin v1.11.0, gorilla/websocket v1.5.3, gRPC v1.80.0.
-- **Persistence**: PostgreSQL 15+ via pgx/v5 + lib/pq; Redis 7+ via go-redis/v9.
-- **AuthN/Z**: golang-jwt/v4 v4.5.2, bcrypt/argon2 (`golang.org/x/crypto`), oauth2.
-- **Config / CLI**: Viper v1.21.0, Cobra v1.8.0, pflag v1.0.10, fsnotify v1.9.0.
-- **LLM / Cloud**: AWS Bedrock runtime (aws-sdk-go-v2), Azure azcore/azidentity, getzep/zep-go/v3, smacker/go-tree-sitter.
-- **UI**: Fyne v2.7.0 (desktop GUI), tview / tcell/v2 (terminal UI), chromedp (headless browser).
-- **Testing**: stretchr/testify v1.11.1.
+VisionEngine (Go module `digital.vasic.visionengine`) is a standalone,
+project-not-aware computer-vision + LLM-vision toolkit for UI analysis and
+navigation-graph construction. It is decoupled from any consuming project by
+design: it imports nothing from a consumer and is meant to be added as an
+equal-codebase submodule by any project that needs screenshot/UI analysis.
 
-### 3.2 Repository Layout — Meta-Repo + Submodules
+**Your mandate as an agent here**: write real, working, tested code. No
+simulations, no hardcoded fixture responses standing in for a real
+implementation. `pkg/analyzer/stub.go`'s `StubAnalyzer` intentionally returns
+an explicit error when no real backend (the `vision` build tag or a wired LLM
+vision provider) is configured, instead of a fabricated screen description —
+do not "fix" that by reintroducing a hardcoded placeholder result.
 
-**This repo is a governance/meta-repo, not the Go application.** The actual Go binary lives in the `helix_code/` subdirectory (a submodule). When an agent says "edit `internal/auth`," they almost always mean `helix_code/internal/auth`, not the root `internal/`.
+## 2. Technology Stack
 
-```
-helix_code/                                # ← repo root (governance + submodules)
-├── CLAUDE.md / AGENTS.md / CONSTITUTION.md / CRUSH.md / QWEN.md   # agent manuals
-├── Makefile                              # governance gates only (see §3.4)
-├── go.mod                                # thin root module (dev.helix.code, go 1.25.2)
-├── helix                                 # Docker facade script (run platform standalone)
-├── setup.sh                              # one-shot: submodule init + deps + build
-├── .gitmodules                           # source of truth for submodule wiring
-├── docker-compose.helix.yml              # standalone deployment
-├── internal/{fix,security,testing,theme} # root-level helpers ONLY (NOT the app)
-├── cmd/security-test/                    # root-level security-test tool ONLY
-├── scripts/                              # init-submodules, propagate-governance,
-│                                         #   verify-governance-cascade, no-silent-skips,
-│                                         #   demo-all, run-all-tests, …
-├── docs/                                 # ARCHITECTURE.md, COMPLETE_*.md guides,
-│                                         #   bluff-proofing/, llms_verifier/, helix_qa/
-│
-├── helix_code/      ← TRACKED SUBDIRECTORY (NOT a submodule — meta-repo's primary inner directory; circular reference if promoted; see §3.2.1)
-├── helix_qa/        ← SUBMODULE: QA / challenge-orchestration platform
-├── challenges/     ← SUBMODULE: cross-cutting Challenge bank (Panoptic, banks/)
-├── containers/     ← SUBMODULE: Docker/container artefacts
-├── Dependencies/   ← SUBMODULES: LLama_CPP, Ollama, HuggingFace_Hub, …
-├── security/       ← SUBMODULE: security tooling
-├── Assets/         ← SUBMODULE: logos, themes, brand
-├── github_pages_website/ ← SUBMODULE: marketing site
-└── Example_Projects/     ← reference projects (Aider, Cline, Plandex, OpenHands, …)
-```
+- **Language**: Go. Module directive `go 1.25.3` per `go.mod` — this is the
+  single authoritative Go version for this module; every reference to a Go
+  version in this document and in `AGENTS.md` MUST match it.
+- **Module path**: `digital.vasic.visionengine` (`go.mod` line 1 — the
+  authoritative module path; there is no other module path anywhere in this
+  repository).
+- **Direct dependencies** (`go.mod`):
+  - `github.com/stretchr/testify v1.11.1` — test assertions.
+  - `gocv.io/x/gocv v0.43.0` — OpenCV bindings, compiled only under the
+    `vision` build tag.
+  - `golang.org/x/crypto v0.51.0` — used by `pkg/remote`'s SSH client.
+  - Indirect: `davecgh/go-spew`, `kr/pretty`, `pmezard/go-difflib`,
+    `rogpeppe/go-internal`, `golang.org/x/sys`, `gopkg.in/check.v1`,
+    `gopkg.in/yaml.v3`.
+- This module has **no** database, cache, web-framework, or GUI-toolkit
+  dependency of any kind.
 
-#### 3.2.1 Inner Go application — `helix_code/` submodule
+## 3. Package Structure
+
+Real, verified package tree (`find pkg -maxdepth 2 -type d`):
 
 ```
-helix_code/helix_code/                      # module dev.helix.code, go 1.26
-├── Makefile                              # real build/test targets (see §3.4)
-├── cmd/
-│   ├── server/                           # HTTP server entry → bin/helixcode
-│   ├── cli/                              # CLI client entry → bin/cli
-│   ├── helix-config/                     # config tool
-│   ├── config-test/                      # config validator
-│   ├── security-test/, security-fix*/    # security tools
-│   └── performance-optimization*/        # perf tools
-├── internal/                             # ~45 packages — the real domain code
-│   ├── auth/        agent/      cognee/      commands/   config/
-│   ├── context/     database/   deployment/  discovery/  editor/
-│   ├── event/       focus/      hardware/    helixqa/    hooks/
-│   ├── llm/         logging/    logo/        mcp/        memory/
-│   ├── monitoring/  notification/ performance/ persistence/ project/
-│   ├── provider/    providers/  redis/       repomap/    rules/
-│   ├── security/    server/     session/     task/       template/
-│   ├── tools/       verifier/   version/     worker/     workflow/
-│   ├── adapters/    fix/        testutil/    mocks/      # mocks/ is unit-test-only
-├── applications/
-│   ├── desktop/      (Fyne GUI)
-│   ├── terminal-ui/  (tview TUI)
-│   ├── ios/  android/  aurora-os/  harmony-os/
-├── tests/
-│   ├── e2e/challenges/   # E2E challenge runner (cmd/runner/main.go)
-│   ├── integration/      # gated by `-tags=integration`
-│   ├── unit/             # mocks ALLOWED here only
-│   ├── security/         # security suite
-│   └── performance/      # benchmarks
-├── config/                # YAML configs (dev/, prod/, test/)
-├── docker/  scripts/  shared/  qa-integration/
-└── docker-compose.full-test.yml + .env.full-test    # zero-skip integration stack
+pkg/
+├── analyzer/     # Analyzer interface, VideoProcessor interface, value types, StubAnalyzer
+├── config/       # env-var configuration loader + validator
+├── graph/        # NavigationGraph: BFS pathfinding + DOT/JSON/Mermaid export
+├── i18n/         # Translator interface + NoopTranslator + bundles/
+│   └── bundles/  # active.en.yaml message bundle
+├── llmvision/    # VisionProvider interface + cloud/local adapters + FallbackChain
+├── opencv/       # OpenCV stubs (default) / real GoCV bindings (-tags vision)
+└── remote/       # SSH-driven remote/distributed Ollama + llama.cpp worker management
 ```
 
-**Cardinal rule:** if a path in instructions doesn't start with `helix_code/`, `helix_qa/`, etc., assume it is relative to the inner Go module and prefix with `helix_code/`.
+| Package | Purpose |
+|---|---|
+| `pkg/analyzer` | `Analyzer` interface, value types (`UIElement`, `ScreenAnalysis`, `ScreenDiff`, `Rect`, `Size`, `TextRegion`, `VisualIssue`, `ScreenIdentity`, `Action`, `KeyFrame`), `StubAnalyzer` reference implementation |
+| `pkg/graph` | `NavigationGraph` — BFS `PathTo`, `ExportDOT`/`ExportJSON`/`ExportMermaid`, coverage tracking |
+| `pkg/llmvision` | `VisionProvider` interface + adapters: OpenAI, Anthropic, Gemini, Qwen, Kimi, StepFun/StepGUI, Astica, Ollama; `FallbackProvider`/`FallbackChain` composer |
+| `pkg/opencv` | OpenCV stubs (default build) + real GoCV bindings behind `-tags vision` |
+| `pkg/config` | Env-driven configuration loader + i18n-routed validation |
+| `pkg/i18n` | Minimal, dependency-free `Translator` interface + `NoopTranslator` default |
+| `pkg/remote` | SSH-driven remote/distributed Ollama + llama.cpp-RPC worker management |
 
-### 3.3 Historical Bluffs — Resolved, Guard Against Regression
+Outside `pkg/`:
 
-The three patterns below were live bluffs in earlier revisions of `helix_code/cmd/cli/main.go`. They have been fixed (verify with `grep -rn "simulate\|For now\|TODO implement\|placeholder" helix_code/cmd/cli/main.go` — must return empty). Treat these as canonical anti-pattern examples; if a future change reintroduces any of them, the change is broken regardless of whether tests pass.
+| Path | Purpose |
+|---|---|
+| `cmd/visiondescribe/` | CLI: turns a screenshot into a structured JSON UI description via `pkg/llmvision` |
+| `internal/archdoc/` | Internal helper package that generates architecture documentation from source |
+| `challenges/runner/` | Standalone runner exercising the public API end-to-end with captured evidence |
+| `challenges/scripts/` | Shell Challenge scripts (chaos-failure-injection, DDoS/health-flood, host-no-auto-suspend, no-suspend-calls, scaling, stress-sustained-load, terminal-UI interaction, UX end-to-end flow, and a paired-mutation "describe" Challenge) |
 
-#### BLUFF-001: LLM Generation is Simulated
-**Location**: `helix_code/cmd/cli/main.go` → function `handleGenerate`
-**Status**: RESOLVED — now calls `provider.Generate` / `GenerateStream` directly. Do not regress.
-**Code Pattern**:
-```go
-// ANTI-BLUFF: NEVER write code like this
-// "For now, simulate generation"
-// "In production, this would use the actual LLM provider"
+## 4. Build & Test — verified in this session
 
-// WRONG - SIMULATION:
-response := fmt.Sprintf("Generated response for: %s\n\nThis is a simulated response...")
-
-// CORRECT - REAL IMPLEMENTATION:
-resp, err := c.llmProvider.Generate(ctx, req)
-if err != nil {
-    return fmt.Errorf("generation failed: %w", err)
-}
-fmt.Println(resp.Text)
-```
-
-**Agent Rule**: When implementing LLM-related code, you MUST make real HTTP calls to real providers. NEVER simulate responses.
-
-### 3.4 Build & Test Commands
-
-Two Makefiles. The **root** Makefile only runs governance gates; the **inner** `helix_code/Makefile` does real builds and tests. Always know which directory you are in.
-
-**Root governance gates** (run from repo root):
-```bash
-make no-silent-skips         # fail on bare t.Skip() without SKIP-OK marker
-make demo-all                # run every submodule's demo (proves they actually run)
-make demo-one MOD=<name>     # run one submodule's demo
-make ci-validate-all         # all governance gates in warn-mode
-./setup.sh                   # first-time: submodules + system deps + build
-./scripts/init-submodules.sh                 # init all submodules
-./scripts/propagate-governance.sh            # cascade Constitution/CLAUDE/AGENTS
-./scripts/verify-governance-cascade.sh       # confirm anchors present in submodules
-./helix start | stop | logs | shell          # Docker facade for the platform
-```
-
-**Inner application** (run from `helix_code/`):
-```bash
-make build                   # → bin/helixcode (server)
-make verify-compile          # quick compile-only sanity check
-make test                    # all unit tests
-make test-coverage           # coverage with -race
-make fmt                     # gofmt
-make lint                    # golangci-lint run
-make dev                     # build + run with config/dev/config.yaml
-make prod                    # cross-compile linux/macos/windows
-```
-
-**Full integration / E2E** (real PostgreSQL + Redis + Ollama via docker-compose):
-```bash
-make test-infra-up                           # start docker-compose.full-test.yml
-make test-infra-status                       # check stack health
-make test-full                               # ALL tests, ZERO skips
-make test-unit-full / test-integration-full / test-e2e-full / test-security-full
-make test-verifier-unit / test-verifier-integration / test-verifier-challenges
-make test-infra-down                         # tear down stack + volumes
-```
-
-**Containerized builds** (no host Go required):
-```bash
-make container-builder-image    # build the builder image once
-make container-build            # build inside container
-make container-test             # test inside container
-make container-shell            # interactive shell in builder
-make container-release          # full release in container
-```
-
-**Single-test invocation** (inner module):
-```bash
-cd <project_root>
-go test -v -run TestJWTGenerate ./internal/auth                          # single unit test
-go test -v -tags=integration -run TestAPI_CreateTask ./tests/integration/...
-go test -v -count=1 ./internal/verifier/...                              # disable test cache
-go test -v -race -coverprofile=cover.out ./internal/llm                  # one pkg with race+cover
-```
-
-**E2E challenges** (real, end-to-end, runtime evidence required):
-```bash
-cd helix_code/tests/e2e/challenges && go run cmd/runner/main.go -all
-# Or root-level cross-cutting Challenges:
-cd Challenges && make <target>
-```
-
-**Anti-bluff smoke check** (must always pass):
-```bash
-grep -rn "simulated\|for now\|TODO implement\|placeholder" \
-  helix_code/internal helix_code/cmd && echo "BLUFF FOUND" || echo "clean"
-```
-
-**Platform / mobile builds** (inner module):
-```bash
-make desktop / desktop-nogui / desktop-linux / desktop-macos / desktop-windows
-make mobile-init && make mobile-ios && make mobile-android
-make aurora-os && make harmony-os
-```
-
-#### BLUFF-002: Model Listing is Hardcoded
-**Location**: `helix_code/cmd/cli/main.go` → function `handleListModels`
-**Status**: RESOLVED — must continue to query `c.providerManager.GetProviders()` per CONST-036/037 (LLMsVerifier is the single source of truth).
-**Correct Pattern**:
-```go
-func (c *CLI) handleListModels(ctx context.Context) error {
-    // Query ALL configured providers
-    for name, provider := range c.providerManager.GetProviders() {
-        models, err := provider.GetModels()
-        if err != nil {
-            log.Printf("Warning: failed to list models from %s: %v", name, err)
-            continue
-        }
-        // Display real models
-        for _, model := range models {
-            fmt.Printf("%s/%s: %s (context: %d)\n", name, model.ID, model.Name, model.ContextSize)
-        }
-    }
-    return nil
-}
-```
-
-#### BLUFF-003: Command Execution is Simulated
-**Location**: `helix_code/cmd/cli/main.go` → function `handleCommand`
-**Status**: RESOLVED — must continue to use `os/exec` via `exec.CommandContext` and surface real exit codes. Never replace with print-and-sleep.
-**Correct Pattern**:
-```go
-func (c *CLI) handleCommand(ctx context.Context, command string) error {
-    // ANTI-BLUFF: Actually execute the command
-    cmd := exec.CommandContext(ctx, "sh", "-c", command)
-    cmd.Dir = c.workingDirectory
-    
-    output, err := cmd.CombinedOutput()
-    
-    fmt.Printf("Exit code: %d\n", cmd.ProcessState.ExitCode())
-    fmt.Printf("Output:\n%s\n", string(output))
-    
-    return err
-}
-```
-
----
-
-## 4. Code Patterns for Agents
-
-### 4.1 Interface-Driven Design
-```go
-// Define the contract
-type Provider interface {
-    Generate(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error)
-    GetModels() ([]Model, error)
-    HealthCheck(ctx context.Context) error
-}
-
-// Implement with REAL behavior
-type OllamaProvider struct { ... }
-func (p *OllamaProvider) Generate(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error) {
-    // Make REAL HTTP call
-    // NO simulation
-}
-```
-
-### 4.2 Manager Pattern
-```go
-type TaskManager struct {
-    db     TaskRepository
-    mu     sync.RWMutex
-    tasks  map[uuid.UUID]*Task
-}
-
-func (m *TaskManager) Create(ctx context.Context, task *Task) error {
-    m.mu.Lock()
-    defer m.mu.Unlock()
-    
-    // Persist to REAL database
-    if err := m.db.Save(ctx, task); err != nil {
-        return fmt.Errorf("failed to save task: %w", err)
-    }
-    
-    m.tasks[task.ID] = task
-    return nil
-}
-```
-
-### 4.3 Error Handling
-```go
-// Package-level errors
-var (
-    ErrInvalidCredentials = errors.New("invalid credentials")
-    ErrTokenExpired       = errors.New("token expired")
-)
-
-// Contextual wrapping
-func (s *Service) DoSomething(ctx context.Context) error {
-    result, err := s.db.Query(ctx)
-    if err != nil {
-        return fmt.Errorf("failed to query database for user %s: %w", userID, err)
-    }
-    
-    if err := s.process(result); err != nil {
-        return fmt.Errorf("failed to process query result: %w", err)
-    }
-    
-    return nil
-}
-```
-
-### 4.4 Testing Pattern (Unit)
-```go
-func TestService_DoSomething(t *testing.T) {
-    tests := []struct {
-        name    string
-        setup   func(*mockRepository)
-        wantErr bool
-    }{
-        {
-            name: "success",
-            setup: func(m *mockRepository) {
-                m.On("Query", mock.Anything).Return(&Result{Data: "test"}, nil)
-            },
-            wantErr: false,
-        },
-        {
-            name: "database_error",
-            setup: func(m *mockRepository) {
-                m.On("Query", mock.Anything).Return(nil, errors.New("connection refused"))
-            },
-            wantErr: true,
-        },
-    }
-    
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            repo := new(mockRepository)
-            tt.setup(repo)
-            
-            svc := NewService(repo)
-            err := svc.DoSomething(context.Background())
-            
-            if tt.wantErr {
-                require.Error(t, err)
-            } else {
-                require.NoError(t, err)
-            }
-            
-            repo.AssertExpectations(t)
-        })
-    }
-}
-```
-
-### 4.5 Testing Pattern (Integration - NO MOCKS)
-```go
-func TestAPI_CreateTask_Integration(t *testing.T) {
-    if testing.Short() {
-        t.Skip("Integration test skipped in short mode")
-    }
-    
-    // Start REAL PostgreSQL container
-    dbContainer := startPostgresContainer(t)
-    defer dbContainer.Terminate(context.Background())
-    
-    // Connect to REAL database
-    db := connectToPostgres(dbContainer)
-    
-    // Initialize REAL service
-    taskMgr := task.NewManager(db)
-    
-    // ANTI-BLUFF: Test with REAL data
-    task, err := taskMgr.Create(context.Background(), &task.Task{
-        Title: "Integration Test Task",
-    })
-    
-    require.NoError(t, err)
-    require.NotZero(t, task.ID)
-    
-    // ANTI-BLUFF: Verify it REALLY exists in database
-    persisted, err := taskMgr.Get(context.Background(), task.ID)
-    require.NoError(t, err)
-    require.Equal(t, "Integration Test Task", persisted.Title)
-}
-```
-
----
-
-## 5. Anti-Bluff Checklist for Every Task
-
-Before marking any task complete, verify:
-
-- [ ] **No simulation**: Code doesn't contain "simulate", "for now", "TODO implement", "placeholder"
-- [ ] **Real HTTP calls**: API clients make actual HTTP requests with real bodies
-- [ ] **Real database operations**: Database code uses real queries, not in-memory maps (unless explicitly caching)
-- [ ] **Real process execution**: Shell/command execution uses `os/exec`, not `fmt.Printf` + `time.Sleep`
-- [ ] **Real file operations**: File tools use `os.ReadFile`/`os.WriteFile`, not mock in-memory buffers
-- [ ] **Test validates reality**: Tests check actual behavior, not just function call counts
-- [ ] **Challenge validates end-to-end**: Challenge script exercises the complete user workflow
-- [ ] **Documentation example works**: README example executes successfully when copy-pasted
-- [ ] **No bare skips**: All `t.Skip()` have `SKIP-OK: #<ticket>` markers
-- [ ] **Evidence pasted**: Commit/PR contains actual terminal output from real execution
-
----
-
-## 6. Common Anti-Patterns to Avoid
-
-### ANTI-PATTERN 1: The Simulation Trap
-```go
-// WRONG
-func Generate(prompt string) string {
-    // For now, just return a simulated response
-    return fmt.Sprintf("Generated: %s", prompt)
-}
-
-// CORRECT
-func (p *Provider) Generate(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error) {
-    resp, err := p.client.Post(p.endpoint, req)
-    if err != nil {
-        return nil, fmt.Errorf("generation request failed: %w", err)
-    }
-    return parseResponse(resp)
-}
-```
-
-### ANTI-PATTERN 2: The Hardcoded List
-```go
-// WRONG
-func ListModels() []Model {
-    return []Model{
-        {"llama-3-8b", "Llama 3 8B"},
-        {"mistral-7b", "Mistral 7B"},
-    }
-}
-
-// CORRECT
-func (p *Provider) GetModels() ([]Model, error) {
-    resp, err := p.client.Get(p.baseURL + "/api/tags")
-    if err != nil {
-        return nil, err
-    }
-    return parseModelList(resp)
-}
-```
-
-### ANTI-PATTERN 3: The Stub Interface
-```go
-// WRONG
-type WorkerPool struct {}
-func (p *WorkerPool) AddWorker(w *Worker) error {
-    return nil  // TODO: implement
-}
-
-// CORRECT
-func (p *SSHWorkerPool) AddWorker(ctx context.Context, w *SSHWorker) error {
-    client, err := ssh.Dial("tcp", w.Host, w.SSHConfig)
-    if err != nil {
-        return fmt.Errorf("failed to connect to worker %s: %w", w.Host, err)
-    }
-    defer client.Close()
-    
-    // Verify worker has helix binary
-    session, err := client.NewSession()
-    if err != nil {
-        return fmt.Errorf("failed to create SSH session: %w", err)
-    }
-    defer session.Close()
-    
-    // Actually test the worker
-    output, err := session.Output("which helix || echo 'NOT_INSTALLED'")
-    if strings.Contains(string(output), "NOT_INSTALLED") {
-        // Auto-install
-        if err := p.installWorker(ctx, client); err != nil {
-            return fmt.Errorf("failed to install worker: %w", err)
-        }
-    }
-    
-    p.workers[w.Hostname] = w
-    return nil
-}
-```
-
----
-
-## 7. Working with Submodules
-
-The project has 80+ submodules. When working with them:
-
-1. **Check governance**: Does the submodule have Constitution.md / CLAUDE.md / AGENTS.md?
-2. **Add if missing**: Create governance files referencing parent
-3. **Verify builds**: Does the submodule actually compile?
-4. **Test integration**: Does the project's integration with this submodule work?
-
----
-
-## 8. Emergency Procedures
-
-### If You Discover a Bluff
-1. STOP working on dependent features
-2. Document the bluff in `docs/issues/BLUFFS.md`
-3. Write a Challenge that reproduces the bluff
-4. Fix the bluff
-5. Verify the Challenge now passes
-6. Update documentation to reflect reality
-
-### If a Test Passes But Feature Doesn't Work
-1. The test is a bluff - tighten it
-2. Add assertions that verify actual output quality
-3. Add anti-bluff checks (no "simulated" in responses)
-4. Run the test against real infrastructure
-5. Verify it FAILS with the broken code
-6. Then fix the code
-
----
-
-## 9. Reference Commands
-
-The full command catalog lives in **§3.4 Build & Test Commands**. The block below is only the smoke-test you should run before claiming any change is done.
+Run from the module root:
 
 ```bash
-# 1. Compiles?
-cd <project_root> && make verify-compile
-
-# 2. Unit tests (mocks allowed only here)
-cd <project_root> && go test -count=1 ./...
-
-# 3. Anti-bluff scan
-grep -rn "simulated\|for now\|TODO implement\|placeholder" \
-  helix_code/internal helix_code/cmd && echo "BLUFF FOUND" || echo "clean"
-
-# 4. Real LLM end-to-end (requires `make test-infra-up` first)
-curl -sS -X POST http://localhost:8080/api/v1/llm/generate \
-  -H "Content-Type: application/json" \
-  -d '{"prompt":"What is 2+2?","model":"llama3.2"}'
-# Must return real AI output, not "simulated response".
-
-# 5. Governance still cascading?
-./scripts/verify-governance-cascade.sh
+go build ./...                # verified: succeeds, no OpenCV required
+go test -count=1 ./...        # verified: all packages pass
+go test -race -count=1 ./...  # verified: passes with the race detector
+go vet ./...                  # verified: clean
 ```
 
----
+`go test -count=1 ./...` reports `[no test files]` for `challenges/runner` and
+`cmd/visiondescribe` (both are `main` entry points, not libraries) and `ok`
+for every package under `pkg/` plus `internal/archdoc`.
 
-## 10. LLMsVerifier Constitutional Mandates (CONST-036 through CONST-040)
+With the `vision` build tag (real OpenCV bindings):
 
-### CONST-036: LLMsVerifier Single Source of Truth
-LLMsVerifier is the sole authoritative source for model metadata, provider metadata, verification status, and scoring data. NO hardcoded model lists. NO simulated discovery.
+```bash
+go build -tags vision ./...
+```
 
-### CONST-037: Model Provider Anti-Bluff Guarantee
-Every model displayed to users MUST be verified by LLMsVerifier within 24h. Integration tests MUST use real verifier data, not mocks.
+This requires OpenCV4 development headers discoverable via `pkg-config`
+(`opencv4.pc`). It was **not** confirmed to succeed in this remediation
+session — the host used had no OpenCV4 dev package installed, and the build
+failed with the expected `pkg-config … opencv4 … not found` error. That is a
+host-environment prerequisite, not a defect in this module; confirm local
+OpenCV availability before relying on `-tags vision`.
 
-### CONST-038: Real-Time Model Status Accuracy
-Model status MUST reflect verifier state within 60s. Poll interval ≤ 60s if push unavailable.
+`Makefile` also wires: `make build`, `make build-vision`, `make test`,
+`make test-race`, `make test-vision`, `make test-coverage`, `make vet`,
+`make lint`, `make fmt`, `make tidy`, `make clean`, `make check`, `make all` —
+plus two portable Definition-of-Done gates: `make no-silent-skips` (fails on
+an unannotated test skip) and `make demo-all` / `make demo-one MOD=<name>`
+(runs each module's acceptance demo, discovered from any `CLAUDE.md` in the
+tree).
 
-### CONST-039: All Providers Integration Mandate
-The project MUST integrate with all verifier-supported providers: OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, xAI, OpenRouter, Ollama, Llama.cpp.
+## 5. Anti-bluff / Definition of Done
 
-### CONST-040: Capability Integration Mandate
-MCP, LSP, ACP, Embedding, RAG, Skills, and Plugins capability flags MUST be sourced from verifier `VerificationResult`. NO hardcoded capability flags.
+- No mocks/fakes/placeholders outside unit tests.
+- `StubAnalyzer` (`pkg/analyzer/stub.go`) is a real reference implementation,
+  not a placeholder: with no OpenCV build or LLM vision provider wired, it
+  returns an explicit error rather than a fabricated result.
+- `challenges/scripts/visionengine_describe_challenge.sh` is a
+  paired-mutation Challenge: normal mode runs the runner unmodified;
+  `--mutate` plants a deliberate regression in a scratch copy of
+  `pkg/graph/graph.go` and asserts the runner detects it. Verified in this
+  session: `--mutate` exits `99` as documented. Note: in an environment with
+  no vision provider/API key configured, both `go run ./challenges/runner/`
+  and the script's normal mode legitimately exit non-zero (the `StubAnalyzer`
+  refuses to fabricate a result) — that is the intended anti-bluff behaviour,
+  not a broken build.
+- `docs/test-coverage.md` maps exported symbols to the test/Challenge that
+  covers them; any gap is listed honestly rather than pretended-covered.
+- Decoupling self-check: grepping `pkg/` and `go.mod` for any consuming
+  project's name should return nothing — this module has zero own-org
+  submodule dependencies (`helix-deps.yaml`: `deps: []`).
 
----
+## 6. Submodule Decoupling
 
-## 11. Contact & Escalation
+This module MUST NOT import, hardcode, or otherwise depend on the identity,
+directory layout, or assumptions of whatever project consumes it. It is
+designed to be added as a submodule by any project that needs computer-vision
+or LLM-vision UI analysis. Consumer-specific values (hostnames, individual
+usernames, API keys) belong in that consumer's own `.env`, never committed
+into this module's source or documentation — `docs/USAGE.md` and
+`.env.example` use a generic placeholder for the example SSH/remote username
+for this reason.
 
-- **Bluff reports**: `docs/issues/BLUFFS.md`
-- **Bug fixes**: `docs/issues/fixed/BUGFIXES.md`
-- **Architecture questions**: `docs/ARCHITECTURE.md`
-- **Emergency**: Create a Challenge that reproduces the issue
+## 7. Configuration
 
----
+Configuration is entirely env-var-driven (`pkg/config`, `.env.example`).
+Representative variables — see `.env.example` for the full, current list:
+`HELIX_VISION_PROVIDER`, `ASTICA_API_KEY`, `OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `QWEN_API_KEY`, `KIMI_API_KEY`,
+`STEPFUN_API_KEY`, `HELIX_VISION_OPENCV_ENABLED`, `HELIX_VISION_TIMEOUT`,
+`HELIX_OLLAMA_URL`, `HELIX_OLLAMA_MODEL`, `HELIX_VISION_HOSTS`,
+`HELIX_VISION_USER` (a placeholder value — never a real individual's account
+name), `HELIX_LLAMACPP_RPC_*`.
 
-## Key Patterns
+## 8. Integration Seams
 
-- NavigationGraph uses `sync.RWMutex` for thread safety
-- BFS pathfinding for shortest path
-- FallbackProvider for multi-provider resilience
-- All providers validate inputs before API calls
+| Direction | Notes |
+|---|---|
+| Upstream (this module imports) | None — zero own-org submodule dependencies |
+| Downstream (consumers) | Any project needing screenshot/UI analysis or navigation-graph tracking can import this module's public `pkg/*` API |
 
-## Integration Seams
+## 9. Peer Documents in This Module
 
-| Direction | Sibling modules |
-|-----------|-----------------|
-| Upstream (this module imports) | none |
-| Downstream (these import this module) | HelixQA |
+`README.md` is the primary source of truth for usage, build commands, and
+architecture — keep this file consistent with it. Other governance/reference
+docs present here: `CONSTITUTION.md`, `AGENTS.md`, `QWEN.md`,
+`ARCHITECTURE.md` (root and `docs/`), `API_REFERENCE.md`, `CHANGELOG.md`,
+`CONTRIBUTING.md`, `docs/USAGE.md`, `docs/test-coverage.md`,
+`docs/HOST_POWER_MANAGEMENT.md`. There is no `CRUSH.md`, `setup.sh`,
+`scripts/init-submodules.sh`, or `docs/issues/` tree in this module — do not
+reference them.
 
-*Siblings* means other project-owned modules at the parent project repo root. The root project app and external systems are not listed here — the list above is intentionally scoped to module-to-module seams, because drift *between* sibling modules is where the "tests pass, product broken" class of bug most often lives. See root `CLAUDE.md` for the rules that keep these seams contract-tested.
+## 10. Known Real Implementations vs. Gaps
 
+- `pkg/analyzer`, `pkg/graph`, `pkg/llmvision`, `pkg/config`, `pkg/i18n`,
+  `pkg/remote` are real, tested implementations (see `go test` output above).
+- `pkg/opencv` ships working stubs by default; the real GoCV-backed path
+  requires the `vision` build tag plus a host OpenCV4 installation.
+- The `Analyzer` interface's `VideoProcessor` counterpart has no shipped
+  implementation yet — see `docs/test-coverage.md` for the current,
+  honestly-tracked list of gaps.
