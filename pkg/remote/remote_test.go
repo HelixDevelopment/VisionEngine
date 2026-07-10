@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -317,9 +318,10 @@ func TestSSHSentinels_AreDistinct(t *testing.T) {
 // `make no-silent-skips` surfaces the conditional coverage.
 //
 // To run: export VISIONENGINE_TEST_SSH_HOST=<host>
-//          VISIONENGINE_TEST_SSH_USER=<user>
-//          VISIONENGINE_TEST_SSH_KEY=/path/to/key
-//          VISIONENGINE_TEST_SSH_KNOWN_HOSTS=/path/to/known_hosts
+//
+//	VISIONENGINE_TEST_SSH_USER=<user>
+//	VISIONENGINE_TEST_SSH_KEY=/path/to/key
+//	VISIONENGINE_TEST_SSH_KNOWN_HOSTS=/path/to/known_hosts
 func TestShutdown_AgainstRealSSHHost(t *testing.T) {
 	host := os.Getenv("VISIONENGINE_TEST_SSH_HOST")
 	user := os.Getenv("VISIONENGINE_TEST_SSH_USER")
@@ -410,6 +412,47 @@ func TestVisionSlot_RecordCall(t *testing.T) {
 	assert.Equal(t, 2, calls)
 	assert.Equal(t, 300*time.Millisecond, totalTime)
 	assert.Equal(t, 1, errors)
+}
+
+// TestVisionSlot_RecordCall_Stats_ConcurrentNoRace is a permanent
+// regression guard for a real data race found in the 2026-07-10
+// adversarial audit: RecordCall/Stats mutated/read plain int and
+// time.Duration fields with no synchronization of their own. A
+// concurrent Stats()-polling goroutine (an ordinary usage pattern —
+// e.g. a metrics reporter) racing against RecordCall() from inference
+// goroutines was flagged by `go test -race`. Captured RED evidence:
+// qa-results/audit_20260710/RED_visionslot_stats_race.txt. Run with
+// `go test -race` to exercise the guard.
+func TestVisionSlot_RecordCall_Stats_ConcurrentNoRace(t *testing.T) {
+	pool := remote.NewVisionPool(remote.PoolConfig{
+		Host:     "thinker.local",
+		BasePort: 8080,
+	})
+	pool.AssignSlots([]remote.SlotTarget{
+		{Platform: "web"},
+	})
+	slot := pool.GetSlot("web", "")
+	require.NotNil(t, slot)
+
+	const n = 60
+	var wg sync.WaitGroup
+	wg.Add(n * 2)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			slot.RecordCall(time.Millisecond, nil)
+		}()
+		go func() {
+			defer wg.Done()
+			_, _, _ = slot.Stats()
+		}()
+	}
+	wg.Wait()
+
+	calls, totalTime, errs := slot.Stats()
+	assert.Equal(t, n, calls)
+	assert.Equal(t, time.Duration(n)*time.Millisecond, totalTime)
+	assert.Equal(t, 0, errs)
 }
 
 func TestNewLlamaCppDeployer(t *testing.T) {

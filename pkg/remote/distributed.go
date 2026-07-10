@@ -198,11 +198,25 @@ func ProbeHosts(ctx context.Context, hosts []SSHConfig) ([]HardwareInfo, error) 
 
 	for _, cfg := range hosts {
 		// Honour ctx cancellation between hosts.
-		select {
-		case <-ctx.Done():
+		//
+		// Root-cause note (audit round 2026-07-10): this previously used
+		// `select { case <-ctx.Done(): ...; break; default: }`. In Go,
+		// `break` inside a `select` (like inside a `switch`) only exits
+		// the `select` itself, NOT the enclosing `for` loop — so once
+		// ctx was cancelled, the loop kept calling probeOneHost for
+		// EVERY remaining host, appending both a cancellation error AND
+		// a probe-failure error per host, contradicting the documented
+		// "Honour ctx cancellation between hosts" contract and wasting
+		// a real SSH-dial attempt per remaining host in the fleet.
+		// Captured RED evidence:
+		// qa-results/audit_20260710/RED_probehosts_select_break.txt.
+		// A plain non-blocking `ctx.Err() != nil` check + a real `break`
+		// (not nested inside select/switch) is both correct and
+		// clearer than the select+default idiom for this non-blocking
+		// check.
+		if ctx.Err() != nil {
 			probeErrs = append(probeErrs, fmt.Errorf("visionengine/remote.ProbeHosts: context cancelled before probing host=%q: %w", cfg.Host, ctx.Err()))
 			break
-		default:
 		}
 
 		info, err := probeOneHost(ctx, cfg)

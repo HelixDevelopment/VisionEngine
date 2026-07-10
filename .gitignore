@@ -40,3 +40,8 @@ Thumbs.db
 /dist/
 
 reports/demos/
+
+# Local adversarial-audit / ad-hoc QA capture evidence (RED/GREEN
+# transcripts) — reproducible from the commands documented in the
+# audit report, never authoritative source; never versioned.
+/qa-results/

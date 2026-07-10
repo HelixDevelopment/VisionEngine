@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -677,6 +678,38 @@ func TestProbeHosts_SSHFailures_CollectedPerHost(t *testing.T) {
 		"joined error MUST unwrap to ErrSSHKeyParseFailed for any host")
 }
 
+// TestProbeHosts_CancelledContext_StopsLoop is a permanent regression
+// guard for a real defect found in the 2026-07-10 adversarial audit:
+// the per-host cancellation check used
+// `select { case <-ctx.Done(): ...; break; default: }`. In Go, `break`
+// inside a `select` (like inside a `switch`) exits ONLY the `select`,
+// never the enclosing `for` loop — so once ctx was cancelled,
+// ProbeHosts kept calling probeOneHost for EVERY remaining host
+// instead of stopping, contradicting its documented "Honour ctx
+// cancellation between hosts" contract (and wasting a real SSH-dial
+// attempt per remaining host in a live fleet). Captured RED evidence:
+// qa-results/audit_20260710/RED_probehosts_select_break.txt.
+func TestProbeHosts_CancelledContext_StopsLoop(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already cancelled before ProbeHosts is even called
+
+	hosts := []SSHConfig{{}, {}, {}} // empty Host -> sshConn fails fast, no network needed
+
+	infos, err := ProbeHosts(ctx, hosts)
+	assert.Empty(t, infos)
+	require.Error(t, err)
+
+	msg := err.Error()
+	// The loop MUST stop at the FIRST cancellation check: exactly one
+	// cancellation message, and probeOneHost MUST NEVER have run (zero
+	// "probe failed" messages) — proving the loop did not fall through
+	// to probe the remaining hosts after detecting cancellation.
+	assert.Equal(t, 1, strings.Count(msg, "context cancelled before probing"),
+		"expected exactly one cancellation message (loop must stop immediately)")
+	assert.Equal(t, 0, strings.Count(msg, "probe failed"),
+		"probeOneHost must never run once ctx is already cancelled")
+}
+
 // TestProbeHosts_RealSSHIntegration — round-57 env-gated real-SSH limb
 // per CONST-050(B). Skipped with loud SKIP-OK marker when env vars are
 // absent so `make no-silent-skips` surfaces the conditional coverage.
@@ -820,7 +853,7 @@ func TestPlanDistribution_EmptyModels_ReturnsSentinel(t *testing.T) {
 //     ("big" remaining is 8000, doesn't fit; "mid" 24000 fits with 4000 left)
 //   - light: needs 4000 GPU,  4000 RAM   → best-fit "small" (remaining 4000)
 //     ("big" remaining 8000 → 4000 left; "mid" remaining 4000 → 0 left;
-//      "small" 8000 → 4000 left; "mid" leaves smaller remainder, picked.)
+//     "small" 8000 → 4000 left; "mid" leaves smaller remainder, picked.)
 //
 // Wait: re-check. After heavy on "big" (rem 8000) and mid_m on "mid"
 // (rem 4000), for light (4000 GPU):

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -157,7 +158,19 @@ func (c Config) Validate() error {
 			c.VisionProvider,
 		))
 	}
-	if c.SSIMThreshold < 0 || c.SSIMThreshold > 1 {
+	// math.IsNaN is required in addition to the range comparisons below:
+	// in Go (IEEE 754), every ordered comparison against NaN — including
+	// `NaN < 0` and `NaN > 1` — evaluates to false, so a bare range check
+	// silently accepts NaN as "in range". A NaN threshold reaches this
+	// point when `HELIX_VISION_SSIM_THRESHOLD=NaN` (or `nan`, `NaN`, all
+	// accepted by strconv.ParseFloat) is set, or when a caller assigns
+	// math.NaN() directly. Downstream comparisons such as
+	// `similarity >= cfg.SSIMThreshold` then ALWAYS evaluate false,
+	// silently breaking screen-comparison logic while Validate() reports
+	// the configuration as valid — a §11.4 input-validation defect found
+	// during the 2026-07-10 adversarial audit
+	// (qa-results/audit_20260710/RED_config_nan_ssim.txt).
+	if math.IsNaN(c.SSIMThreshold) || c.SSIMThreshold < 0 || c.SSIMThreshold > 1 {
 		return fmt.Errorf("%w: %s", ErrInvalidConfig, resolveOrFallback(
 			ctx, pkgTranslator,
 			"visionengine_config_invalid_ssim_threshold",

@@ -267,6 +267,47 @@ func TestExportMermaid_TransitionLabels(t *testing.T) {
 	assert.Contains(t, mermaid, "click: button")
 }
 
+// TestExportMermaid_NoIDCollision is a permanent regression guard for a
+// real defect found in the 2026-07-10 adversarial audit:
+// sanitizeMermaidID collapses distinct raw IDs onto the same sanitized
+// string (e.g. "a.b" and "a-b" both became "a_b"), which silently
+// merged two DISTINCT navigation-graph screens into ONE node in the
+// rendered Mermaid diagram. Captured RED evidence:
+// qa-results/audit_20260710/RED_mermaid_id_collision.txt.
+func TestExportMermaid_NoIDCollision(t *testing.T) {
+	g := NewNavigationGraph()
+	g.AddScreen(analyzer.ScreenIdentity{ID: "a.b", Name: "ScreenDot", Fingerprint: "fp1"})
+	g.AddScreen(analyzer.ScreenIdentity{ID: "a-b", Name: "ScreenDash", Fingerprint: "fp2"})
+	g.AddTransition("a.b", "a-b", analyzer.Action{Type: "click", Target: "next"})
+
+	mermaid := ExportMermaid(g)
+
+	// Both distinct screens MUST get their own node declaration line.
+	assert.Contains(t, mermaid, `["ScreenDot"]`)
+	assert.Contains(t, mermaid, `["ScreenDash"]`)
+
+	// The two node IDs used in the declarations MUST differ.
+	lines := strings.Split(mermaid, "\n")
+	var dotID, dashID string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, `["ScreenDot"]`) {
+			dotID = strings.SplitN(trimmed, "[", 2)[0]
+		}
+		if strings.Contains(trimmed, `["ScreenDash"]`) {
+			dashID = strings.SplitN(trimmed, "[", 2)[0]
+		}
+	}
+	require.NotEmpty(t, dotID)
+	require.NotEmpty(t, dashID)
+	assert.NotEqual(t, dotID, dashID, "distinct screen IDs must not collide onto the same Mermaid node ID")
+
+	// The transition MUST connect the two distinct node IDs, not fold
+	// into a self-loop on one merged node.
+	assert.Contains(t, mermaid, fmt.Sprintf("%s -->", dotID))
+	assert.Contains(t, mermaid, fmt.Sprintf("| %s", dashID))
+}
+
 // --- Sanitization Tests ---
 
 func TestSanitizeDOTLabel(t *testing.T) {

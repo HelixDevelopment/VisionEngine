@@ -54,14 +54,25 @@ func (f *FallbackProvider) SupportsVision() bool {
 }
 
 // MaxImageSize returns the minimum max image size across all providers.
+//
+// Root-cause note (audit round 2026-07-10): the previous implementation
+// used the zero value of `min` as an "unset" sentinel (`if min == 0 ||
+// s < min`). That conflated "no provider examined yet" with "a provider
+// legitimately reported 0", making the result depend on provider ORDER
+// instead of provider VALUES — e.g. providers [{0}, {500}] returned 500
+// while the reordered [{500}, {0}] returned 0, even though a true
+// minimum must be commutative. Fixed by tracking "have we seen a value
+// yet" explicitly instead of overloading zero.
 func (f *FallbackProvider) MaxImageSize() int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	min := 0
+	seen := false
 	for _, p := range f.providers {
 		s := p.MaxImageSize()
-		if min == 0 || s < min {
+		if !seen || s < min {
 			min = s
+			seen = true
 		}
 	}
 	return min

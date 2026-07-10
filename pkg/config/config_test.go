@@ -5,6 +5,7 @@ package config
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"testing"
 
@@ -44,6 +45,35 @@ func TestConfig_Validate_InvalidSSIM(t *testing.T) {
 
 	cfg.SSIMThreshold = 1.1
 	err = cfg.Validate()
+	assert.ErrorIs(t, err, ErrInvalidConfig)
+}
+
+// TestConfig_Validate_NaNSSIMThreshold is a permanent regression guard
+// for a real defect found in the 2026-07-10 adversarial audit: in Go,
+// every ordered comparison against NaN (including `NaN < 0` and
+// `NaN > 1`) evaluates to false, so the bare range check
+// `c.SSIMThreshold < 0 || c.SSIMThreshold > 1` silently accepted NaN as
+// a "valid" threshold. A NaN threshold is reachable via
+// `HELIX_VISION_SSIM_THRESHOLD=NaN` through LoadFromEnv (strconv.ParseFloat
+// accepts "NaN"/"nan"/"NAN") or by direct field assignment. Captured RED
+// evidence: qa-results/audit_20260710/RED_config_nan_ssim.txt.
+func TestConfig_Validate_NaNSSIMThreshold(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.SSIMThreshold = math.NaN()
+	err := cfg.Validate()
+	assert.ErrorIs(t, err, ErrInvalidConfig)
+}
+
+// TestConfig_LoadFromEnv_NaNSSIMThreshold_RejectedByValidate proves the
+// full attacker-reachable path: an operator/attacker-controlled env var
+// string of "NaN" parses successfully via strconv.ParseFloat and MUST be
+// caught by Validate() at configuration-validation time, not silently
+// accepted.
+func TestConfig_LoadFromEnv_NaNSSIMThreshold_RejectedByValidate(t *testing.T) {
+	t.Setenv("HELIX_VISION_SSIM_THRESHOLD", "NaN")
+	cfg := LoadFromEnv()
+	require.True(t, math.IsNaN(cfg.SSIMThreshold), "test setup expected ParseFloat to accept \"NaN\"")
+	err := cfg.Validate()
 	assert.ErrorIs(t, err, ErrInvalidConfig)
 }
 

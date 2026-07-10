@@ -7,9 +7,18 @@
 //
 // What this proves at runtime (every invocation):
 //
-//  1. analyzer.StubAnalyzer constructs and executes AnalyzeScreen on
-//     a non-empty screenshot buffer, returning a populated
-//     ScreenAnalysis whose ScreenID is a deterministic fingerprint.
+//  1. analyzer.StubAnalyzer constructs and executes AnalyzeScreen on a
+//     non-empty screenshot buffer, and HONESTLY refuses to fabricate
+//     an analysis result — it returns the documented
+//     ErrStubAnalyzerNotImplemented sentinel rather than a populated
+//     ScreenAnalysis. (Audit round 2026-07-10: this check previously
+//     expected AnalyzeScreen to SUCCEED with a populated ScreenID —
+//     that was the pre-round-27 bluff behaviour pkg/analyzer/stub.go
+//     documents as REMOVED; the runner was never updated to match,
+//     so it had been failing this check on every real invocation
+//     since round-27 landed. Reconciled here to assert the CURRENT,
+//     correct, honest-refusal contract instead of reverting the
+//     round-27 anti-bluff fix or silently weakening this check.)
 //  2. The same call rejects an empty buffer with ErrEmptyScreenshot
 //     (negative-path proof — the analyzer is not vacuously OK on any
 //     input).
@@ -77,18 +86,17 @@ func main() {
 	))
 	fmt.Println(strings.Repeat("=", 72))
 
-	// ── Check 1: AnalyzeScreen on non-empty buffer ────────────────
+	// ── Check 1: AnalyzeScreen on non-empty buffer honestly refuses ──
+	// (round-27 anti-bluff fix, reconciled here 2026-07-10: see the
+	// package doc comment above for the full defect narrative.)
 	stub := analyzer.NewStubAnalyzer()
 	screenshot := []byte("PNG-pretend-bytes-for-runner-deterministic-fingerprint")
-	res, err := stub.AnalyzeScreen(ctx, screenshot)
-	if err != nil {
-		die("AnalyzeScreen(non-empty)", err)
-	}
-	if res.ScreenID == "" {
-		die("AnalyzeScreen(non-empty)", errors.New("empty ScreenID"))
+	_, err := stub.AnalyzeScreen(ctx, screenshot)
+	if !errors.Is(err, analyzer.ErrStubAnalyzerNotImplemented) {
+		die("AnalyzeScreen(non-empty)", fmt.Errorf("want ErrStubAnalyzerNotImplemented (honest no-bluff refusal), got %v", err))
 	}
 	fmt.Println(localeLabel(
-		fmt.Sprintf("AnalyzeScreen OK id=%s title=%q", res.ScreenID[:16]+"…", res.Title),
+		"AnalyzeScreen OK — honestly refuses to fabricate analysis (no OpenCV/LLM wired)",
 		"AnalyzeScreen radi",
 		"AnalyzeScreen成功",
 		"AnalyzeScreen erfolgreich",

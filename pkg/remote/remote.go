@@ -14,6 +14,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -171,11 +172,39 @@ type VisionSlot struct {
 	// Port is the port number for this slot's server.
 	Port int
 
-	mu        sync.Mutex
-	calls     int
-	totalTime time.Duration
-	errors    int
-	sem       chan struct{} // concurrency limiter; nil means unlimited
+	// mu guards exclusive endpoint access via the public
+	// Lock()/Unlock() methods below. It is INTENTIONALLY separate
+	// from the atomic counters below — see the 2026-07-10
+	// adversarial-audit note on RecordCall/Stats for why.
+	mu sync.Mutex
+
+	// calls / totalTimeNanos / errors back the diagnostics
+	// surfaced by RecordCall/Stats. They are atomic.Int64 instead
+	// of plain int/time.Duration — round 2026-07-10 audit finding:
+	// the previous plain-int fields were mutated by RecordCall and
+	// read by Stats with NO synchronization of their own; Stats
+	// documented no locking requirement and the module's own
+	// existing test (TestVisionSlot_RecordCall) already calls
+	// RecordCall without holding the public Lock(), so the "callers
+	// serialize via Lock()" convention was not actually the real
+	// contract. A concurrent Stats()-polling goroutine (a
+	// perfectly ordinary usage — metrics reporter reading live
+	// counters while inference goroutines record calls) raced with
+	// RecordCall under `go test -race` (captured RED evidence:
+	// qa-results/audit_20260710/RED_visionslot_stats_race.txt).
+	// Using atomics protects the counters unconditionally,
+	// independent of whether any caller also holds the public
+	// Lock() — and deliberately does NOT reuse `mu` for this,
+	// because a caller following the documented
+	// Lock()-around-the-network-call pattern
+	// (`slot.Lock(); ...; slot.RecordCall(...); slot.Unlock()`)
+	// would deadlock against Go's non-reentrant sync.Mutex if
+	// RecordCall also tried to acquire `mu`.
+	calls          atomic.Int64
+	totalTimeNanos atomic.Int64
+	errors         atomic.Int64
+
+	sem chan struct{} // concurrency limiter; nil means unlimited
 }
 
 // Lock acquires exclusive access to this slot.
@@ -204,19 +233,21 @@ func (s *VisionSlot) Release() {
 }
 
 // RecordCall records a vision inference call's duration and
-// error status for diagnostics.
+// error status for diagnostics. Safe for concurrent use by any
+// number of callers, independent of whether they also hold the
+// slot's public Lock() — see the VisionSlot field-comment above.
 func (s *VisionSlot) RecordCall(duration time.Duration, err error) {
-	s.calls++
-	s.totalTime += duration
+	s.calls.Add(1)
+	s.totalTimeNanos.Add(int64(duration))
 	if err != nil {
-		s.errors++
+		s.errors.Add(1)
 	}
 }
 
 // Stats returns the number of calls, total time, and error
-// count for this slot.
+// count for this slot. Safe for concurrent use with RecordCall.
 func (s *VisionSlot) Stats() (calls int, totalTime time.Duration, errors int) {
-	return s.calls, s.totalTime, s.errors
+	return int(s.calls.Load()), time.Duration(s.totalTimeNanos.Load()), int(s.errors.Load())
 }
 
 // VisionPool manages a set of inference endpoints, one per
@@ -349,7 +380,7 @@ func (p *VisionPool) EnsureReady(ctx context.Context) error {
 // shellEscape wraps an argument in single quotes for safe
 // embedding into an SSH-invoked shell command. Single quotes
 // inside the argument are escaped via the standard
-// `'\''` sequence.
+// `'\”` sequence.
 func shellEscape(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

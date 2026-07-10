@@ -655,6 +655,44 @@ func TestFallbackProvider_MaxImageSize(t *testing.T) {
 	assert.Equal(t, 50, f.MaxImageSize())
 }
 
+// TestFallbackProvider_MaxImageSize_ZeroValueIsNotOrderSentinel is a
+// permanent regression guard for a real defect found in the 2026-07-10
+// adversarial audit: MaxImageSize() used the zero value as an "unset"
+// sentinel (`if min == 0 || s < min`), so a provider that legitimately
+// reports MaxImageSize()==0 made the aggregate depend on provider ORDER
+// instead of provider VALUES. [{0},{500}] returned 500 while the
+// reordered [{500},{0}] returned 0 — not a valid minimum (minimum MUST
+// be commutative). Captured RED evidence:
+// qa-results/audit_20260710/RED_fallback_maximagesize_order.txt.
+func TestFallbackProvider_MaxImageSize_ZeroValueIsNotOrderSentinel(t *testing.T) {
+	zero := &mockProvider{name: "zero", maxSize: 0}
+	nonzero := &mockProvider{name: "nonzero", maxSize: 500}
+
+	fZeroFirst, err := NewFallbackProvider(zero, nonzero)
+	require.NoError(t, err)
+	fNonzeroFirst, err := NewFallbackProvider(nonzero, zero)
+	require.NoError(t, err)
+
+	// A true minimum is order-independent: swapping the providers MUST
+	// NOT change the result. Both orderings MUST report the true
+	// minimum across the two values (0), since 0 IS a value a
+	// VisionProvider implementation can legitimately report.
+	assert.Equal(t, 0, fZeroFirst.MaxImageSize())
+	assert.Equal(t, 0, fNonzeroFirst.MaxImageSize())
+	assert.Equal(t, fZeroFirst.MaxImageSize(), fNonzeroFirst.MaxImageSize())
+}
+
+// TestFallbackProvider_MaxImageSize_AllZero guards the degenerate case
+// where every provider reports 0 — the aggregate MUST still be 0, not
+// panic or misreport due to the "seen" tracking added by the fix above.
+func TestFallbackProvider_MaxImageSize_AllZero(t *testing.T) {
+	p1 := &mockProvider{name: "p1", maxSize: 0}
+	p2 := &mockProvider{name: "p2", maxSize: 0}
+	f, err := NewFallbackProvider(p1, p2)
+	require.NoError(t, err)
+	assert.Equal(t, 0, f.MaxImageSize())
+}
+
 func TestFallbackProvider_AnalyzeImage_FirstSucceeds(t *testing.T) {
 	p1 := &mockProvider{name: "p1", vision: true, analyzeResult: "result from p1"}
 	p2 := &mockProvider{name: "p2", vision: true, analyzeResult: "result from p2"}
@@ -727,9 +765,9 @@ type mockProvider struct {
 	compareErr    error
 }
 
-func (m *mockProvider) Name() string                { return m.name }
-func (m *mockProvider) SupportsVision() bool         { return m.vision }
-func (m *mockProvider) MaxImageSize() int            { return m.maxSize }
+func (m *mockProvider) Name() string         { return m.name }
+func (m *mockProvider) SupportsVision() bool { return m.vision }
+func (m *mockProvider) MaxImageSize() int    { return m.maxSize }
 
 func (m *mockProvider) AnalyzeImage(_ context.Context, _ []byte, _ string) (string, error) {
 	return m.analyzeResult, m.analyzeErr
