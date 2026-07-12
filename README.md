@@ -2,7 +2,7 @@
 
 Computer-vision + LLM-vision toolkit for UI analysis and navigation-graph
 construction. Decoupled from any consuming project per CONST-051(B);
-incorporated by HelixCode + HelixQA as an equal-codebase submodule per
+incorporated by a consuming project (and HelixQA) as an equal-codebase submodule per
 CONST-051(A).
 
 ## Overview
@@ -108,7 +108,7 @@ evidence captured during execution.
    falls back to its bundled English fixture — keeping the module
    project-not-aware per CONST-051(B).
 6. **CONST-051(B) decoupling.** The module imports nothing from
-   HelixCode / HelixQA / any consuming project. Verify:
+   the consuming project / HelixQA / any consuming project. Verify:
    `! grep -r 'helix_code\|helixqa\|HelixCode\|HelixQA' pkg/ go.mod`.
 7. **Symbol→test ledger** at `docs/test-coverage.md` maps every exported
    symbol in `pkg/{analyzer,graph,llmvision,opencv,config,i18n,remote}`
@@ -136,7 +136,7 @@ This submodule inherits the universal Constitution from
 `constitution/` at the meta-repo root and tightens it where the
 submodule's scope is narrower. Project-specific clauses MUST never
 appear in this submodule's source per CONST-051(B); they live in the
-consuming project (HelixCode, HelixQA).
+consuming project (e.g. HelixQA).
 
 Relevant constitutional anchors:
 

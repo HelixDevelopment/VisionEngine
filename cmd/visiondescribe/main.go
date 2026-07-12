@@ -7,7 +7,7 @@
 //
 // It is decoupled from any consuming project (CONST-051(B) / §11.4.28): it reads
 // only env vars + a screenshot path and prints structured JSON to stdout. The
-// ATMOSphere test harness (or any consumer) calls it via ui_vision.sh.
+// The consuming project's test harness (or any consumer) calls it via ui_vision.sh.
 //
 // Provider selection (honest, evidence-driven — §11.4.6): it builds a fallback
 // chain from whichever vision-capable keys are present in the environment, in

@@ -240,7 +240,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 <h1 id="visionengine">VisionEngine</h1>
 <p>Computer-vision + LLM-vision toolkit for UI analysis and
 navigation-graph construction. Decoupled from any consuming project per
-CONST-051(B); incorporated by HelixCode + HelixQA as an equal-codebase
+CONST-051(B); incorporated by a consuming project (and HelixQA) as an equal-codebase
 submodule per CONST-051(A).</p>
 <h2 id="overview">Overview</h2>
 <p>VisionEngine provides four cooperating layers:</p>
@@ -379,7 +379,7 @@ resolves through <code>pkg/i18n.Translator</code>.
 verbatim so the call site falls back to its bundled English fixture —
 keeping the module project-not-aware per CONST-051(B).</li>
 <li><strong>CONST-051(B) decoupling.</strong> The module imports nothing
-from HelixCode / HelixQA / any consuming project. Verify:
+from the consuming project / HelixQA / any consuming project. Verify:
 <code>! grep -r &#39;helix_code\|helixqa\|HelixCode\|HelixQA&#39; pkg/ go.mod</code>.</li>
 <li><strong>Symbol→test ledger</strong> at
 <code>docs/test-coverage.md</code> maps every exported symbol in
@@ -403,7 +403,7 @@ reference capture.</p>
 <code>constitution/</code> at the meta-repo root and tightens it where
 the submodule&#39;s scope is narrower. Project-specific clauses MUST never
 appear in this submodule&#39;s source per CONST-051(B); they live in the
-consuming project (HelixCode, HelixQA).</p>
+consuming project (e.g. HelixQA).</p>
 <p>Relevant constitutional anchors:</p>
 <ul>
 <li><strong>CONST-035</strong> — Zero-bluff mandate (Article XI §11.9

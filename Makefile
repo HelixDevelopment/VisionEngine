@@ -54,7 +54,7 @@ check: vet test-race ## Run all checks (vet + tests with race detector)
 
 all: tidy fmt vet test-race ## Run full CI pipeline
 
-# Definition of Done gates — portable drop-in from HelixAgent
+# Definition of Done gates — portable drop-in from the parent project
 .PHONY: no-silent-skips no-silent-skips-warn demo-all demo-all-warn demo-one ci-validate-all
 
 no-silent-skips:
